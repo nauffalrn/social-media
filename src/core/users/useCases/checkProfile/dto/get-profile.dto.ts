@@ -1,0 +1,3 @@
+class GetProfileDto {
+  userId: string;
+}

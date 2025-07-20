@@ -1,0 +1,3 @@
+class SignInResponseDto {
+  accessToken: string;
+}

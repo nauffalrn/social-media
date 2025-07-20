@@ -1,0 +1,3 @@
+class GetNotificationsDto {
+  userId: string;
+}
