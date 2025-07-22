@@ -4,14 +4,20 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { lastValueFrom } from 'rxjs';
+import { DrizzleInstance } from 'src/infrastructure/database';
+import {
+  email,
+  follow,
+  post,
+  profile,
+  user,
+} from 'src/infrastructure/database/schema';
+import { EmailService } from 'src/infrastructure/email/email.service';
+import { generateSnowflakeId } from 'src/infrastructure/snowflake/snowflake';
+import { UploadsService } from 'src/infrastructure/storage/uploads.service';
+import { Either, ErrorRegister, left, right } from 'src/libs/helpers/either';
 import { User } from './entities/user.entity';
 import { UpdateProfileDto } from './useCases/updateProfile/update-profile.dto';
-import { Either, ErrorRegister, left, right } from 'src/libs/helpers/either';
-import { DrizzleInstance } from 'src/infrastructure/database';
-import { EmailService } from 'src/infrastructure/email/email.service';
-import { UploadsService } from 'src/infrastructure/storage/uploads.service';
-import { generateSnowflakeId } from 'src/infrastructure/snowflake/snowflake';
-import { email, follow, post, profile, user } from 'src/infrastructure/database/schema';
 
 const SALT_ROUNDS = 10;
 
@@ -87,7 +93,7 @@ export class UsersService {
       await this.db.insert(email).values({
         id: emailId,
         value: createUserDto.email,
-        verified_at: null,
+        verified_at: process.env.NODE_ENV === 'development' ? new Date() : null, // <-- ini kuncinya
       });
 
       // Insert user
@@ -108,7 +114,7 @@ export class UsersService {
         user_id: userId,
         full_name: '',
         bio: '',
-        username: '',
+        username: `user${userId}`, // isi dengan nilai unik, misal: userId atau email
         picture_url: await this.getRandomAvatarUrl(),
         is_private: false,
       });
@@ -138,6 +144,7 @@ export class UsersService {
         verificationToken: verifyToken,
       });
     } catch (error) {
+      console.error('❌ Error detail saat create user:', error); // Tambahkan log ini
       return left(new ErrorRegister.InputanSalah('Gagal membuat user'));
     }
   }
@@ -188,7 +195,11 @@ export class UsersService {
         return left(new ErrorRegister.EmailNotVerified());
       }
 
-      const payload = { sub: userId.toString(), email: loginDto.email };
+      const payload = {
+        sub: userId.toString(),
+        email: loginDto.email,
+        username: profileData?.username || '',
+      };
       const accessToken = this.jwtService.sign(payload);
 
       return right({

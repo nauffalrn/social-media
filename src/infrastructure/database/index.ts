@@ -1,12 +1,15 @@
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import postgres from 'postgres';
 import * as schema from './schema';
+const postgres = require('postgres');
 
 // Koneksi database
-const connectionString = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/social_media';
+const connectionString = process.env.DATABASE_URL;
+console.log('DATABASE_URL (index.ts):', connectionString);
 
-// Perbaiki cara penggunaan postgres
 const client = postgres(connectionString);
 export const db = drizzle(client, {
   schema: schema,
@@ -31,3 +34,6 @@ export async function runMigrations() {
     await migrationClient.end();
   }
 }
+
+// Tambahkan di main.ts atau index.ts
+console.log('DATABASE_URL:', process.env.DATABASE_URL);

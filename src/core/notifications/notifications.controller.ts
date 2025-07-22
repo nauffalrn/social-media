@@ -22,7 +22,7 @@ export class NotificationsController {
     @Param('username') username: string,
     @Query('take') take?: string,
     @Query('page') page?: string,
-  ): Promise<any> {
+  ): Promise<GetNotificationsResponseDto> {
     if (req.user.username !== username) {
       throw new BadRequestException(
         'Anda hanya dapat melihat notifikasi dari akun sendiri',
@@ -60,7 +60,11 @@ export class NotificationsController {
     }
 
     return {
-      notifications: result.value,
+      notifications: result.value.map((n) => ({
+        id: n.id,
+        description: n.description,
+        category: n.category,
+      })),
     };
   }
 }

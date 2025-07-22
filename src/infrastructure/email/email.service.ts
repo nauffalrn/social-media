@@ -26,7 +26,8 @@ export class EmailService {
     });
     if (error) {
       this.logger.error('Resend error:', error);
-      throw error;
+      return false;
     }
+    return true;
   }
 }
