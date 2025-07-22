@@ -1,6 +1,12 @@
-class DeleteRepliedCommentDto {
-  userId: string;
+import { ApiProperty } from '@nestjs/swagger';
+
+export class DeleteRepliedCommentDto {
+  @ApiProperty()
+  username: string;
+  @ApiProperty()
   postId: string;
+  @ApiProperty()
   commentId: string;
+  @ApiProperty()
   replyId: string;
 }

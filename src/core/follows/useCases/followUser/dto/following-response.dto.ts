@@ -1,1 +1,1 @@
-class FollowingResponseDto {}
+export class FollowingResponseDto {}

@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   NotFoundException,
   Param,
   Patch,
@@ -12,11 +13,39 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { ApiResponse } from '@nestjs/swagger';
+import { ApiResponse, PickType } from '@nestjs/swagger';
 import { AuthGuard } from 'src/libs/guards/authGuard';
 import { createUserSchema } from './schemas/user.schema';
 import { UpdateProfileDto } from './useCases/updateProfile/update-profile.dto';
 import { UsersService } from './users.service';
+import { Sign, sign } from 'crypto';
+import { SignUpDto } from './useCases/signUp/dto/sign-up.dto';
+import { SignUpVerificationDto } from 'src/infrastructure/email/verificationEmail/dto/sign-up-verification.dto';
+import { SignInDto } from './useCases/signIn/dto/sign-in.dto';
+import { SignInResponseDto } from './useCases/signIn/dto/sign-in-response.dto';
+import { get } from 'http';
+import { GetProfileDto } from './useCases/checkProfile/dto/get-profile.dto';
+import { GetProfileResponseDto } from './useCases/checkProfile/dto/get-profile-response.dto';
+
+export class SignUpDtoBody extends PickType(SignUpDto, ['email', 'password']) {}
+export class SignUpVerificationDtoBody extends PickType(SignUpVerificationDto, [
+  'email',
+  'verificationToken',
+]) {}
+export class SignInDtoBody extends PickType(SignInDto, ['email', 'password']) {}
+export class SignInResponseDtoBody extends PickType(
+  SignInResponseDto,
+  ['accessToken'],
+) {}
+export class GetProfileDtoParams extends PickType(GetProfileDto, ['username']) {}
+export class GetProfileDtoResponse extends PickType(GetProfileResponseDto, ['bio', 'fullName', 'username', 'pictureUrl', 'summaries', 'recentPosts']) {}
+export class UpdateProfileDtoBody extends PickType(UpdateProfileDto, [
+  'bio',
+  'fullName',
+  'username',
+  'pictureUrl',
+]) {}
+
 
 @Controller()
 export class UsersController {
@@ -25,24 +54,11 @@ export class UsersController {
     private readonly jwtService: JwtService,
   ) {}
 
+  @HttpCode(204)
   @Post('sign-up')
   @ApiResponse({
-    status: 200,
-    description: 'Pendaftaran berhasil',
-    content: {
-      'application/json': {
-        example: {
-          message: 'Pendaftaran berhasil, silakan cek email untuk verifikasi',
-          user: {
-            id: '1',
-            username: 'nauffal',
-            email: 'nauffal@email.com',
-            fullName: 'Nauffal',
-            pictureUrl: 'https://cdn.example.com/avatar1.jpg',
-          },
-        },
-      },
-    },
+    status: 204,
+    description: 'Pendaftaran berhasil, silakan cek email untuk verifikasi',
   })
   async signup(@Body() createUserDto: SignUpDto) {
     const parseResult = createUserSchema.safeParse(createUserDto);
@@ -64,17 +80,11 @@ export class UsersController {
     };
   }
 
+  @HttpCode(204)
   @Post('sign-up/verification')
   @ApiResponse({
-    status: 200,
+    status: 204,
     description: 'Email berhasil diverifikasi',
-    content: {
-      'application/json': {
-        example: {
-          message: 'Email berhasil diverifikasi',
-        },
-      },
-    },
   })
   async verifySignUp(@Body() verificationDto: SignUpVerificationDto) {
     try {
@@ -98,21 +108,7 @@ export class UsersController {
   @ApiResponse({
     status: 200,
     description: 'Login berhasil',
-    content: {
-      'application/json': {
-        example: {
-          message: 'Login berhasil',
-          user: {
-            id: '1',
-            username: 'nauffal',
-            email: 'nauffal@email.com',
-            fullName: 'Nauffal',
-            pictureUrl: 'https://cdn.example.com/avatar1.jpg',
-          },
-          accessToken: 'jwt.token.here',
-        },
-      },
-    },
+    type: SignInResponseDtoBody,
   })
   async login(@Body() loginDto: SignInDto) {
     const result = await this.usersService.login(loginDto);
@@ -128,23 +124,11 @@ export class UsersController {
     };
   }
 
+  @Get('users/:username')
   @ApiResponse({
     status: 200,
     description: 'Detail user',
-    content: {
-      'application/json': {
-        example: {
-          user: {
-            id: '1',
-            username: 'nauffal',
-            email: 'nauffal@email.com',
-            fullName: 'Nauffal',
-            pictureUrl: 'https://cdn.example.com/avatar1.jpg',
-            bio: 'Halo, saya Nauffal!',
-          },
-        },
-      },
-    },
+    type: GetProfileDtoResponse,
   })
   async getUserByUsername(@Request() req, @Param('username') username: string) {
     const result = await this.usersService.findByUsername(username);
@@ -153,23 +137,18 @@ export class UsersController {
       throw new NotFoundException(result.error.message);
     }
 
-    // Output sesuai gambar/DTO
     return {
       user: result.value,
     };
   }
 
+
+  // development only
+  @HttpCode(204)
   @Get('users/verify')
   @ApiResponse({
-    status: 200,
+    status: 204,
     description: 'Email berhasil diverifikasi',
-    content: {
-      'application/json': {
-        example: {
-          message: 'Email berhasil diverifikasi',
-        },
-      },
-    },
   })
   async verifyEmail(@Query('token') token: string) {
     // Verifikasi token langsung, tanpa AuthGuard
@@ -192,21 +171,7 @@ export class UsersController {
   @ApiResponse({
     status: 200,
     description: 'Profil berhasil diupdate',
-    content: {
-      'application/json': {
-        example: {
-          message: 'Profil berhasil diupdate',
-          user: {
-            id: '1',
-            username: 'nauffal',
-            email: 'nauffal@email.com',
-            fullName: 'Nauffal',
-            pictureUrl: 'https://cdn.example.com/avatar1.jpg',
-            bio: 'Bio baru',
-          },
-        },
-      },
-    },
+    type: UpdateProfileDtoBody,
   })
   async updateProfile(
     @Request() req,

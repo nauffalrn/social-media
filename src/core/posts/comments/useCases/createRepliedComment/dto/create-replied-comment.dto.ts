@@ -1,10 +1,12 @@
-export class CreateReplyDto {
-  text: string;
-}
+import { ApiProperty } from '@nestjs/swagger';
 
-class CreateRepliedCommentDto {
-  userId: string;
+export class CreateRepliedCommentDto {
+  @ApiProperty()
+  username: string;
+  @ApiProperty()
   postId: string;
+  @ApiProperty()
   commentId: string;
+  @ApiProperty()
   text: string;
 }

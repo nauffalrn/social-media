@@ -1,1 +1,1 @@
-class CreatePostCommentResponseDto {}
+export class CreatePostCommentResponseDto {}

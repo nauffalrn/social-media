@@ -18,6 +18,8 @@ import { UploadsService } from 'src/infrastructure/storage/uploads.service';
 import { Either, ErrorRegister, left, right } from 'src/libs/helpers/either';
 import { User } from './entities/user.entity';
 import { UpdateProfileDto } from './useCases/updateProfile/update-profile.dto';
+import { SignUpDto } from './useCases/signUp/dto/sign-up.dto';
+import { SignInDto } from './useCases/signIn/dto/sign-in.dto';
 
 const SALT_ROUNDS = 10;
 

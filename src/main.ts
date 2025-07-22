@@ -52,6 +52,9 @@ async function bootstrap() {
     customfavIcon: '/public/logo.png',
     customCssUrl: ['/public/global.css', '/public/dark.css', '/public/light.css'],
     customJs: '/public/swagger.js',
+    swaggerOptions: {
+      defaultModelsExpandDepth: -1,
+    },
   });
   await app.listen(3000, '0.0.0.0');
 

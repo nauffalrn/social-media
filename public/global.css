@@ -289,7 +289,6 @@ body {
 .swagger-ui section.models {
   border: 1px solid var(--block-border-color);
   background-color: var(--block-bg-color);
-  display: none !important;
 }
 
 .swagger-ui .opblock .opblock-section-header {

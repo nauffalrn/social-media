@@ -11,6 +11,7 @@ import { ApiBearerAuth, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from 'src/libs/guards/authGuard';
 import { LoggedInUser } from 'src/libs/helpers/logged-in-user';
 import { NotificationsService } from './notifications.service';
+import { GetNotificationsResponseDto } from './useCases/getNotifications/dto/get-notifications-response.dto';
 
 @ApiTags('Notifications')
 @Controller('users')
@@ -24,24 +25,7 @@ export class NotificationsController {
   @ApiResponse({
     status: 200,
     description: 'List of notifications',
-    content: {
-      'application/json': {
-        example: {
-          notifications: [
-            {
-              id: '1',
-              description: 'User A liked your post',
-              category: 'like',
-            },
-            {
-              id: '2',
-              description: 'User B commented on your post',
-              category: 'comment',
-            },
-          ],
-        },
-      },
-    },
+    type: GetNotificationsResponseDto,
   })
   @Get(':username/notifications')
   async getNotifications(

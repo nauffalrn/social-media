@@ -1,15 +1,32 @@
-class GetProfileResponseDto {
-  username: string;
-  fullName: string;
-  bio: string;
+import { ApiProperty } from '@nestjs/swagger';
+
+class Summaries {
+  @ApiProperty()
+  postsCounts: number;
+  @ApiProperty()
+  followingsCount: number;
+  @ApiProperty()
+  followersCount: number;
+}
+
+class RecentPost {
+  @ApiProperty()
+  id: string;
+  @ApiProperty()
   pictureUrl: string;
-  summaries: {
-    postsCounts
-    followingsCount: number;
-    followersCount: number
-  }
-  recentPosts: Array<{
-    id: string;
-    pictureUrl: string;
-  }>
+}
+
+export class GetProfileResponseDto {
+  @ApiProperty()
+  username: string;
+  @ApiProperty()
+  fullName: string;
+  @ApiProperty()
+  bio: string;
+  @ApiProperty()
+  pictureUrl: string;
+  @ApiProperty()
+  summaries: Summaries;
+  @ApiProperty({ type: [RecentPost] })
+  recentPosts: Array<RecentPost>;
 }

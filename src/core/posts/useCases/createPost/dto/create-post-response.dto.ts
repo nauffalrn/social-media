@@ -1,1 +1,1 @@
-class CreatePostResponseDto {}
+export class CreatePostResponseDto {}

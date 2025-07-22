@@ -1,4 +1,8 @@
-class LikePostDto {
-  userId: string;
-  postId: string
+import { ApiProperty } from '@nestjs/swagger';
+
+export class LikePostDto {
+  @ApiProperty()
+  username: string;
+  @ApiProperty()
+  postId: string;
 }

@@ -4,6 +4,7 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  HttpCode,
   NotFoundException,
   Param,
   Post,
@@ -12,7 +13,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { ApiQuery, ApiResponse } from '@nestjs/swagger';
+import { ApiQuery, ApiResponse, OmitType, PickType } from '@nestjs/swagger';
 import { UploadsService } from 'src/infrastructure/storage/uploads.service';
 import { FastifyFileInterceptor } from 'src/libs/decorators/fastify-file.interceptor';
 import { AuthGuard } from 'src/libs/guards/authGuard';
@@ -20,6 +21,19 @@ import { ErrorRegister } from 'src/libs/helpers/either';
 import { LoggedInUser } from 'src/libs/helpers/logged-in-user';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './useCases/createPost/dto/create-post.dto';
+import { extend } from 'zod/v4/core/util.cjs';
+import { GetPostsDto } from './useCases/searchPost/dto/get-posts.dto';
+import { GetPostsResponseDto } from './useCases/searchPost/dto/get-posts-response.dto';
+import { get } from 'http';
+import { DeletePostDto } from './useCases/deletePost/dto/delete-post.dto';
+
+export class GetPostsDtoParams extends PickType(GetPostsDto, ['take', 'page']) {}
+export class CreatePostDtoBody extends OmitType(CreatePostDto, [
+  'username'
+]) {}
+export class CreatePostsDtoParams extends PickType(CreatePostDto, ['username']) {}
+export class DeletePostDtoParams extends PickType(DeletePostDto, ['username', 'postId']) {}
+
 
 @Controller('users')
 export class PostsController {
@@ -34,28 +48,7 @@ export class PostsController {
   @ApiResponse({
     status: 200,
     description: 'List of posts',
-    content: {
-      'application/json': {
-        example: {
-          posts: [
-            {
-              id: '1',
-              pictureUrl: 'https://cdn.example.com/image1.jpg',
-              caption: 'Caption pertama',
-              createdAt: '2025-07-22T13:00:00.000Z',
-              user: {
-                username: 'nauffal',
-                pictureUrl: 'https://cdn.example.com/avatar1.jpg',
-              },
-              summaries: {
-                likesCount: 10,
-                commentsCount: 5,
-              },
-            },
-          ],
-        },
-      },
-    },
+    type: GetPostsResponseDto,
   })
   @Get(':username/posts')
   async getUserPosts(
@@ -120,24 +113,11 @@ export class PostsController {
     };
   }
 
+  @HttpCode(204)
   @UseGuards(AuthGuard)
   @ApiResponse({
-    status: 200,
+    status: 204,
     description: 'Post berhasil dibuat',
-    content: {
-      'application/json': {
-        example: {
-          message: 'Post berhasil dibuat',
-          post: {
-            id: '1',
-            pictureUrl: 'https://cdn.example.com/image1.jpg',
-            caption: 'Caption pertama',
-            createdAt: '2025-07-22T13:00:00.000Z',
-            userId: '123',
-          },
-        },
-      },
-    },
   })
   @Post(':username/posts')
   @UseInterceptors(FastifyFileInterceptor('file'))
@@ -171,7 +151,7 @@ export class PostsController {
 
     const pictureUrl = await this.uploadsService.uploadToCloudinary(file);
     const postData: CreatePostDto = {
-      userId: req.user.sub,
+      username: req.user.sub,
       pictureUrl,
       caption,
       tags: parsedTags,
@@ -193,17 +173,11 @@ export class PostsController {
     };
   }
 
+  @HttpCode(204)
   @UseGuards(AuthGuard)
   @ApiResponse({
-    status: 200,
-    description: 'Post berhasil dihapus',
-    content: {
-      'application/json': {
-        example: {
-          message: 'Post berhasil dihapus',
-        },
-      },
-    },
+    status: 204,
+    description: 'Post berhasil dihapus'
   })
   @Delete(':username/posts/:postId')
   async delete(

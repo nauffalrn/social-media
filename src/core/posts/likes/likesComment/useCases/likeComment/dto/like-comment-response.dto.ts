@@ -1,1 +1,1 @@
-class LikeCommentResponseDto {}
+export class LikeCommentResponseDto {}

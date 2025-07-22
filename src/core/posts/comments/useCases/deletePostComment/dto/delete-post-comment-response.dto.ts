@@ -1,1 +1,1 @@
-class DeletePostCommentResponseDto {}
+export class DeletePostCommentResponseDto {}

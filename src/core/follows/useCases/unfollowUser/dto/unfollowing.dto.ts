@@ -1,4 +1,9 @@
-class UnfollowingDto {
-  userId: string;
+import { ApiProperty } from '@nestjs/swagger';
+
+export class UnfollowingDto {
+  @ApiProperty()
+  username: string;
+
+  @ApiProperty()
   followId: string;
 }

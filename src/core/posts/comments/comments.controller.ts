@@ -4,18 +4,38 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Post,
   Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { ApiQuery, ApiResponse } from '@nestjs/swagger';
+import { ApiQuery, ApiResponse, OmitType, PickType } from '@nestjs/swagger';
 import { AuthGuard } from 'src/libs/guards/authGuard';
 import { LoggedInUser } from 'src/libs/helpers/logged-in-user';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './useCases/createPostComment/dto/create-post-comment.dto';
-import { CreateReplyDto } from './useCases/createRepliedComment/dto/create-replied-comment.dto';
+import { CreateRepliedCommentDto } from './useCases/createRepliedComment/dto/create-replied-comment.dto';
+import { GetPostCommentsResponseDto } from './useCases/getPostComments/dto/get-post-comments-response.dto';
+import { omit, pick } from 'zod/v4/core/util.cjs';
+import { DeletePostCommentDto } from './useCases/deletePostComment/dto/delete-post-comment.dto';
+import { GetRepliedCommentsResponseDto } from './useCases/getRepliedComments/dto/get-replied-comments-response.dto';
+
+export class CreateCommentDtoParams extends PickType(CreateCommentDto, [
+  'username',
+  'postId',
+]) {}
+export class CreateCommentDtoBody extends PickType(CreateCommentDto, [
+  'text',
+]) {}
+export class CreateCommentReplyDtoParams extends OmitType(CreateRepliedCommentDto, [
+  'text',
+]) {}
+export class CreateCommentReplyDtoBody extends PickType(CreateRepliedCommentDto, [
+  'text',
+]) {}
+
 
 @Controller('users')
 export class CommentsController {
@@ -27,20 +47,7 @@ export class CommentsController {
   @ApiResponse({
     status: 200,
     description: 'List of comments',
-    content: {
-      'application/json': {
-        example: {
-          comments: [
-            {
-              id: '1',
-              text: 'Komentar pertama',
-              user: { username: 'userA' },
-              createdAt: '2025-07-22T13:00:00.000Z',
-            },
-          ],
-        },
-      },
-    },
+    type: GetPostCommentsResponseDto,
   })
   @Get(':username/posts/:postId/comments')
   async getPostComments(
@@ -82,23 +89,11 @@ export class CommentsController {
     };
   }
 
+  @HttpCode(204)
   @UseGuards(AuthGuard)
   @ApiResponse({
-    status: 200,
+    status: 204,
     description: 'Komentar berhasil dibuat',
-    content: {
-      'application/json': {
-        example: {
-          message: 'Komentar berhasil dibuat',
-          comment: {
-            id: '1',
-            text: 'Komentar baru',
-            user: { username: 'userA' },
-            createdAt: '2025-07-22T13:00:00.000Z',
-          },
-        },
-      },
-    },
   })
   @Post(':username/posts/:postId/comments')
   async createComment(
@@ -123,17 +118,11 @@ export class CommentsController {
     };
   }
 
+  @HttpCode(204)
   @UseGuards(AuthGuard)
   @ApiResponse({
-    status: 200,
-    description: 'Komentar berhasil dihapus',
-    content: {
-      'application/json': {
-        example: {
-          message: 'Komentar berhasil dihapus',
-        },
-      },
-    },
+    status: 204,
+    description: 'Komentar berhasil dihapus'
   })
   @Delete(':username/posts/:postId/comments/:commentId')
   async deleteComment(
@@ -161,20 +150,7 @@ export class CommentsController {
   @ApiResponse({
     status: 200,
     description: 'List of replies',
-    content: {
-      'application/json': {
-        example: {
-          replies: [
-            {
-              id: '1',
-              text: 'Balasan komentar',
-              user: { username: 'userB' },
-              createdAt: '2025-07-22T13:10:00.000Z',
-            },
-          ],
-        },
-      },
-    },
+    type: GetRepliedCommentsResponseDto,
   })
   @Get(':username/posts/:postId/comments/:commentId/replies')
   async getReplies(
@@ -215,30 +191,18 @@ export class CommentsController {
     };
   }
 
+  @HttpCode(204)
   @UseGuards(AuthGuard)
   @ApiResponse({
-    status: 200,
+    status: 204,
     description: 'Balasan komentar berhasil dibuat',
-    content: {
-      'application/json': {
-        example: {
-          message: 'Balasan komentar berhasil dibuat',
-          reply: {
-            id: '1',
-            text: 'Balasan komentar',
-            user: { username: 'userB' },
-            createdAt: '2025-07-22T13:10:00.000Z',
-          },
-        },
-      },
-    },
   })
   @Post(':username/posts/:postId/comments/:commentId/replies')
   async createReply(
     @Request() req: LoggedInUser,
     @Param('postId') postId: string,
     @Param('commentId') commentId: string,
-    @Body() createReplyDto: CreateReplyDto,
+    @Body() createReplyDto: CreateRepliedCommentDto,
   ): Promise<any> {
     const userId = BigInt(req.user.sub);
     const result = await this.commentsService.createReply(
@@ -258,17 +222,11 @@ export class CommentsController {
     };
   }
 
+  @HttpCode(204)
   @UseGuards(AuthGuard)
   @ApiResponse({
-    status: 200,
-    description: 'Balasan komentar berhasil dihapus',
-    content: {
-      'application/json': {
-        example: {
-          message: 'Balasan komentar berhasil dihapus',
-        },
-      },
-    },
+    status: 204,
+    description: 'Balasan komentar berhasil dihapus'
   })
   @Delete(':username/posts/:postId/comments/:commentId/replies/:replyId')
   async deleteReply(

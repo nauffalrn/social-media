@@ -3,38 +3,39 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Post,
   Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { ApiQuery, ApiResponse } from '@nestjs/swagger';
+import { ApiQuery, ApiResponse, PickType } from '@nestjs/swagger';
 
 import { AuthGuard } from 'src/libs/guards/authGuard';
 import { FollowsService } from './follows.service';
+import { FollowingDto } from './useCases/followUser/dto/following.dto';
+import { UnfollowingDto } from './useCases/unfollowUser/dto/unfollowing.dto';
+import { GetFollowersResponseDto } from './useCases/checkFollowers/dto/get-followers-response.dto';
+import { GetFollowersDto } from './useCases/checkFollowers/dto/get-followers.dto';
+import { GetFollowingsResponseDto } from './useCases/checkFollowings/dto/get-followings-response.dto';
+import { GetFollowingsDto } from './useCases/checkFollowings/dto/get-followings.dto';
+
+export class FollowingDtoParams extends PickType(FollowingDto, ['username']) {}
+export class UnfollowingDtoParams extends PickType(UnfollowingDto, ['username']) {}
+export class GetFollowersDtoParams extends PickType(GetFollowersDto, ['username', 'take', 'page']) {}
+export class GetFollowingsDtoParams extends PickType(GetFollowingsDto, ['username', 'take', 'page']) {}
+
 
 @Controller('users')
 export class FollowsController {
   constructor(private readonly followsService: FollowsService) {}
 
+  @HttpCode(204)
   @UseGuards(AuthGuard)
   @ApiResponse({
-    status: 200,
-    description: 'Berhasil mengikuti pengguna',
-    content: {
-      'application/json': {
-        example: {
-          message: 'Berhasil mengikuti pengguna',
-          follow: {
-            id: '1',
-            followerId: '2',
-            followingId: '3',
-            createdAt: '2025-07-22T13:20:00.000Z',
-          },
-        },
-      },
-    },
+    status: 204,
+    description: 'Berhasil mengikuti pengguna'
   })
   @Post(':username/follows')
   async followUser(@Request() req, @Param('username') username: string) {
@@ -49,17 +50,11 @@ export class FollowsController {
     };
   }
 
+  @HttpCode(204)
   @UseGuards(AuthGuard)
   @ApiResponse({
-    status: 200,
-    description: 'Berhasil berhenti mengikuti pengguna',
-    content: {
-      'application/json': {
-        example: {
-          message: 'Berhasil berhenti mengikuti pengguna',
-        },
-      },
-    },
+    status: 204,
+    description: 'Berhasil berhenti mengikuti pengguna'
   })
   @Delete(':username/follows')
   async unfollowUser(@Request() req, @Param('username') username: string) {
@@ -76,19 +71,7 @@ export class FollowsController {
   @ApiResponse({
     status: 200,
     description: 'List of followers',
-    content: {
-      'application/json': {
-        example: {
-          followers: [
-            {
-              username: 'userA',
-              fullName: 'User A',
-              pictureUrl: 'https://cdn.example.com/avatarA.jpg',
-            },
-          ],
-        },
-      },
-    },
+    type: GetFollowersResponseDto,
   })
   @Get(':username/followers')
   async getFollowers(
@@ -130,19 +113,7 @@ export class FollowsController {
   @ApiResponse({
     status: 200,
     description: 'List of followings',
-    content: {
-      'application/json': {
-        example: {
-          followings: [
-            {
-              username: 'userB',
-              fullName: 'User B',
-              pictureUrl: 'https://cdn.example.com/avatarB.jpg',
-            },
-          ],
-        },
-      },
-    },
+    type: GetFollowingsResponseDto,
   })
   @Get(':username/followings')
   async getFollowings(

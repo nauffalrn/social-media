@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Controller,
   Delete,
+  HttpCode,
   Param,
   Post,
   Request,
@@ -16,17 +17,11 @@ import { LikesService } from './likes.service';
 export class LikesController {
   constructor(private readonly likesService: LikesService) {}
 
+  @HttpCode(204)
   @UseGuards(AuthGuard)
   @ApiResponse({
-    status: 200,
-    description: 'Berhasil menyukai post',
-    content: {
-      'application/json': {
-        example: {
-          message: 'Berhasil menyukai post',
-        },
-      },
-    },
+    status: 204,
+    description: 'Berhasil menyukai post'
   })
   @Post(':username/posts/:postId/likes')
   async likePost(
@@ -46,17 +41,11 @@ export class LikesController {
     };
   }
 
+  @HttpCode(204)
   @UseGuards(AuthGuard)
   @ApiResponse({
-    status: 200,
-    description: 'Berhasil membatalkan suka pada post',
-    content: {
-      'application/json': {
-        example: {
-          message: 'Berhasil membatalkan suka pada post',
-        },
-      },
-    },
+    status: 204,
+    description: 'Berhasil membatalkan suka pada post'
   })
   @Delete(':username/posts/:postId/likes')
   async unlikePost(

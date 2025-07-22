@@ -1,1 +1,1 @@
-class UnlikePostResponseDto {}
+export class UnlikePostResponseDto {}

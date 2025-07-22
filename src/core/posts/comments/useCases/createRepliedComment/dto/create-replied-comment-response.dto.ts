@@ -1,1 +1,1 @@
-class CreateRepliedCommentResponseDto {}
+export class CreateRepliedCommentResponseDto {}
