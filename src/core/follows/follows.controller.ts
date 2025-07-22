@@ -10,22 +10,11 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { ApiQuery, ApiResponse, PickType } from '@nestjs/swagger';
-
+import { ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { AuthGuard } from 'src/libs/guards/authGuard';
 import { FollowsService } from './follows.service';
-import { FollowingDto } from './useCases/followUser/dto/following.dto';
-import { UnfollowingDto } from './useCases/unfollowUser/dto/unfollowing.dto';
 import { GetFollowersResponseDto } from './useCases/checkFollowers/dto/get-followers-response.dto';
-import { GetFollowersDto } from './useCases/checkFollowers/dto/get-followers.dto';
 import { GetFollowingsResponseDto } from './useCases/checkFollowings/dto/get-followings-response.dto';
-import { GetFollowingsDto } from './useCases/checkFollowings/dto/get-followings.dto';
-
-export class FollowingDtoParams extends PickType(FollowingDto, ['username']) {}
-export class UnfollowingDtoParams extends PickType(UnfollowingDto, ['username']) {}
-export class GetFollowersDtoParams extends PickType(GetFollowersDto, ['username', 'take', 'page']) {}
-export class GetFollowingsDtoParams extends PickType(GetFollowingsDto, ['username', 'take', 'page']) {}
-
 
 @Controller('users')
 export class FollowsController {
@@ -35,7 +24,7 @@ export class FollowsController {
   @UseGuards(AuthGuard)
   @ApiResponse({
     status: 204,
-    description: 'Berhasil mengikuti pengguna'
+    description: 'Berhasil mengikuti pengguna',
   })
   @Post(':username/follows')
   async followUser(@Request() req, @Param('username') username: string) {
@@ -54,7 +43,7 @@ export class FollowsController {
   @UseGuards(AuthGuard)
   @ApiResponse({
     status: 204,
-    description: 'Berhasil berhenti mengikuti pengguna'
+    description: 'Berhasil berhenti mengikuti pengguna',
   })
   @Delete(':username/follows')
   async unfollowUser(@Request() req, @Param('username') username: string) {

@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateProfileDto {
+  
   @ApiProperty()
   fullName?: string;
   @ApiProperty()

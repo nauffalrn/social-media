@@ -21,7 +21,7 @@ export class LikesController {
   @UseGuards(AuthGuard)
   @ApiResponse({
     status: 204,
-    description: 'Berhasil menyukai post'
+    description: 'Berhasil menyukai post',
   })
   @Post(':username/posts/:postId/likes')
   async likePost(
@@ -45,7 +45,7 @@ export class LikesController {
   @UseGuards(AuthGuard)
   @ApiResponse({
     status: 204,
-    description: 'Berhasil membatalkan suka pada post'
+    description: 'Berhasil membatalkan suka pada post',
   })
   @Delete(':username/posts/:postId/likes')
   async unlikePost(

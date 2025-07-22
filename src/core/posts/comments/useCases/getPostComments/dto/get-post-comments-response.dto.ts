@@ -16,13 +16,24 @@ class Summaries {
   repliesCount: number;
 }
 
+class Comments {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty()
+  text: string;
+
+  @ApiProperty()
+  createdAt: string;
+
+  @ApiProperty({ type: User })
+  user: User;
+
+  @ApiProperty({ type: Summaries })
+  summaries: Summaries;
+}
+
 export class GetPostCommentsResponseDto {
-  @ApiProperty({ type: [Object] })
-  comments: Array<{
-    id: string;
-    text: string;
-    createdAt: string;
-    user: User;
-    summaries: Summaries;
-  }>
+  @ApiProperty({ type: [Comments] })
+  comments: Array<Comments>;
 }

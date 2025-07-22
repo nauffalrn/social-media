@@ -13,39 +13,16 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { ApiResponse, PickType } from '@nestjs/swagger';
+import { ApiBody, ApiQuery, ApiResponse } from '@nestjs/swagger';
+import { SignUpVerificationDto } from 'src/infrastructure/email/verificationEmail/dto/sign-up-verification.dto';
 import { AuthGuard } from 'src/libs/guards/authGuard';
 import { createUserSchema } from './schemas/user.schema';
+import { GetProfileResponseDto } from './useCases/checkProfile/dto/get-profile-response.dto';
+import { SignInResponseDto } from './useCases/signIn/dto/sign-in-response.dto';
+import { SignInDto } from './useCases/signIn/dto/sign-in.dto';
+import { SignUpDto } from './useCases/signUp/dto/sign-up.dto';
 import { UpdateProfileDto } from './useCases/updateProfile/update-profile.dto';
 import { UsersService } from './users.service';
-import { Sign, sign } from 'crypto';
-import { SignUpDto } from './useCases/signUp/dto/sign-up.dto';
-import { SignUpVerificationDto } from 'src/infrastructure/email/verificationEmail/dto/sign-up-verification.dto';
-import { SignInDto } from './useCases/signIn/dto/sign-in.dto';
-import { SignInResponseDto } from './useCases/signIn/dto/sign-in-response.dto';
-import { get } from 'http';
-import { GetProfileDto } from './useCases/checkProfile/dto/get-profile.dto';
-import { GetProfileResponseDto } from './useCases/checkProfile/dto/get-profile-response.dto';
-
-export class SignUpDtoBody extends PickType(SignUpDto, ['email', 'password']) {}
-export class SignUpVerificationDtoBody extends PickType(SignUpVerificationDto, [
-  'email',
-  'verificationToken',
-]) {}
-export class SignInDtoBody extends PickType(SignInDto, ['email', 'password']) {}
-export class SignInResponseDtoBody extends PickType(
-  SignInResponseDto,
-  ['accessToken'],
-) {}
-export class GetProfileDtoParams extends PickType(GetProfileDto, ['username']) {}
-export class GetProfileDtoResponse extends PickType(GetProfileResponseDto, ['bio', 'fullName', 'username', 'pictureUrl', 'summaries', 'recentPosts']) {}
-export class UpdateProfileDtoBody extends PickType(UpdateProfileDto, [
-  'bio',
-  'fullName',
-  'username',
-  'pictureUrl',
-]) {}
-
 
 @Controller()
 export class UsersController {
@@ -56,6 +33,7 @@ export class UsersController {
 
   @HttpCode(204)
   @Post('sign-up')
+  @ApiBody({ type: SignUpDto })
   @ApiResponse({
     status: 204,
     description: 'Pendaftaran berhasil, silakan cek email untuk verifikasi',
@@ -67,13 +45,10 @@ export class UsersController {
         parseResult.error.issues.map((e) => e.message).join(', '),
       );
     }
-
     const result = await this.usersService.create(createUserDto);
-
     if (result.isLeft()) {
       throw new BadRequestException(result.error.message);
     }
-
     return {
       message: 'Pendaftaran berhasil, silakan cek email untuk verifikasi',
       user: result.value,
@@ -82,6 +57,7 @@ export class UsersController {
 
   @HttpCode(204)
   @Post('sign-up/verification')
+  @ApiBody({ type: SignUpVerificationDto })
   @ApiResponse({
     status: 204,
     description: 'Email berhasil diverifikasi',
@@ -105,18 +81,17 @@ export class UsersController {
   }
 
   @Post('sign-in')
+  @ApiBody({ type: SignInDto })
   @ApiResponse({
     status: 200,
     description: 'Login berhasil',
-    type: SignInResponseDtoBody,
+    type: SignInResponseDto,
   })
   async login(@Body() loginDto: SignInDto) {
     const result = await this.usersService.login(loginDto);
-
     if (result.isLeft()) {
       throw new BadRequestException(result.error.message);
     }
-
     return {
       message: 'Login berhasil',
       user: result.value.user,
@@ -128,30 +103,26 @@ export class UsersController {
   @ApiResponse({
     status: 200,
     description: 'Detail user',
-    type: GetProfileDtoResponse,
+    type: GetProfileResponseDto,
   })
-  async getUserByUsername(@Request() req, @Param('username') username: string) {
+  async getUserByUsername(@Param('username') username: string) {
     const result = await this.usersService.findByUsername(username);
-
     if (result.isLeft()) {
       throw new NotFoundException(result.error.message);
     }
-
     return {
       user: result.value,
     };
   }
 
-
-  // development only
   @HttpCode(204)
   @Get('users/verify')
+  @ApiQuery({ name: 'token', required: true })
   @ApiResponse({
     status: 204,
     description: 'Email berhasil diverifikasi',
   })
   async verifyEmail(@Query('token') token: string) {
-    // Verifikasi token langsung, tanpa AuthGuard
     try {
       const payload = this.jwtService.verify(token);
       if (payload.type !== 'verify') {
@@ -168,28 +139,24 @@ export class UsersController {
 
   @Patch('users/profile')
   @UseGuards(AuthGuard)
+  @ApiBody({ type: UpdateProfileDto })
   @ApiResponse({
     status: 200,
     description: 'Profil berhasil diupdate',
-    type: UpdateProfileDtoBody,
+    type: UpdateProfileDto,
   })
   async updateProfile(
     @Request() req,
     @Body() updateProfileDto: UpdateProfileDto,
   ) {
-    // Ambil userId dari token
     const userId = BigInt(req.user.sub);
-
-    // Update profile
     const result = await this.usersService.updateProfile(
       userId,
       updateProfileDto,
     );
-
     if (result.isLeft()) {
       throw new BadRequestException(result.error.message);
     }
-
     return {
       message: 'Profil berhasil diupdate',
       user: result.value,
