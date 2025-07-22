@@ -1,7 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { DrizzleInstance } from 'src/infrastructure/database';
-import { post_like } from 'src/infrastructure/database/schema';
+import {
+  notification,
+  post,
+  post_like,
+  profile,
+} from 'src/infrastructure/database/schema'; // Tambahkan import
 import { generateSnowflakeId } from 'src/infrastructure/snowflake/snowflake';
 import { Either, ErrorRegister, left, right } from 'src/libs/helpers/either';
 
@@ -18,7 +23,9 @@ export class LikesService {
       const existingLike = await this.db
         .select()
         .from(post_like)
-        .where(and(eq(post_like.post_id, postId), eq(post_like.user_id, userId)))
+        .where(
+          and(eq(post_like.post_id, postId), eq(post_like.user_id, userId)),
+        )
         .limit(1);
 
       if (existingLike.length > 0) {
@@ -31,6 +38,28 @@ export class LikesService {
         user_id: userId,
       });
 
+      // Ambil post dan pemiliknya
+      const [postData] = await this.db
+        .select()
+        .from(post)
+        .where(eq(post.id, postId))
+        .limit(1);
+      if (postData && postData.user_id !== userId) {
+        // Ambil username pelaku
+        const [profileData] = await this.db
+          .select()
+          .from(profile)
+          .where(eq(profile.user_id, userId))
+          .limit(1);
+        const actorUsername = profileData?.username || 'Seseorang';
+        await this.db.insert(notification).values({
+          id: generateSnowflakeId(),
+          user_id: postData.user_id,
+          description: `${actorUsername} menyukai postinganmu`,
+          category: 'like',
+        });
+      }
+
       return right(undefined);
     } catch (error) {
       console.error('Error liking post:', error);
@@ -40,12 +69,18 @@ export class LikesService {
 
   async unlikePost(userId: bigint, postId: bigint): Promise<UnlikePostResult> {
     try {
-      await this.db.delete(post_like).where(and(eq(post_like.post_id, postId), eq(post_like.user_id, userId)));
+      await this.db
+        .delete(post_like)
+        .where(
+          and(eq(post_like.post_id, postId), eq(post_like.user_id, userId)),
+        );
 
       return right(undefined);
     } catch (error) {
       console.error('Error unliking post:', error);
-      return left(new ErrorRegister.InputanSalah('Gagal membatalkan suka pada post'));
+      return left(
+        new ErrorRegister.InputanSalah('Gagal membatalkan suka pada post'),
+      );
     }
   }
 }

@@ -1,7 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { DrizzleInstance } from 'src/infrastructure/database';
-import { comment, profile } from 'src/infrastructure/database/schema';
+import {
+  comment,
+  comment as commentTable,
+  notification,
+  post,
+  profile,
+} from 'src/infrastructure/database/schema'; // Tambahkan import
 import {
   extractDateFromSnowflake,
   generateSnowflakeId,
@@ -130,6 +136,27 @@ export class CommentsService {
           user_id: comment.user_id,
         });
 
+      // Notifikasi ke pemilik post
+      const [postData] = await this.db
+        .select()
+        .from(post)
+        .where(eq(post.id, postId))
+        .limit(1);
+      if (postData && postData.user_id !== userId) {
+        const [profileData] = await this.db
+          .select()
+          .from(profile)
+          .where(eq(profile.user_id, userId))
+          .limit(1);
+        const actorUsername = profileData?.username || 'Seseorang';
+        await this.db.insert(notification).values({
+          id: generateSnowflakeId(),
+          user_id: postData.user_id,
+          description: `${actorUsername} mengomentari postinganmu`,
+          category: 'comment',
+        });
+      }
+
       return right({
         id: inserted.id.toString(),
         text: inserted.text,
@@ -238,12 +265,32 @@ export class CommentsService {
           user_id: comment.user_id,
         });
 
+      // Notifikasi ke pemilik komentar
+      const [commentData] = await this.db
+        .select()
+        .from(commentTable)
+        .where(eq(commentTable.id, commentId))
+        .limit(1);
+      if (commentData && commentData.user_id !== userId) {
+        const [profileData] = await this.db
+          .select()
+          .from(profile)
+          .where(eq(profile.user_id, userId))
+          .limit(1);
+        const actorUsername = profileData?.username || 'Seseorang';
+        await this.db.insert(notification).values({
+          id: generateSnowflakeId(),
+          user_id: commentData.user_id,
+          description: `${actorUsername} membalas komentarmu`,
+          category: 'reply',
+        });
+      }
+
       return right({
         id: inserted.id.toString(),
         text: inserted.text,
         createdAt: extractDateFromSnowflake(inserted.id),
         postId: inserted.post_id.toString(),
-        commentId: inserted.parent_id?.toString(),
         userId: inserted.user_id.toString(),
       });
     } catch (error) {

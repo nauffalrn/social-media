@@ -1,7 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { DrizzleInstance } from 'src/infrastructure/database';
-import { follow, profile } from 'src/infrastructure/database/schema';
+import {
+  follow,
+  notification,
+  profile,
+} from 'src/infrastructure/database/schema'; 
 import {
   extractDateFromSnowflake,
   generateSnowflakeId,
@@ -73,6 +77,22 @@ export class FollowsService {
 
     if (!inserted) {
       return left(new ErrorRegister.AlreadyFollowing());
+    }
+
+    // Notifikasi ke user yang di-follow
+    if (followingId !== followerId) {
+      const [profileData] = await this.db
+        .select()
+        .from(profile)
+        .where(eq(profile.user_id, followerId))
+        .limit(1);
+      const actorUsername = profileData?.username || 'Seseorang';
+      await this.db.insert(notification).values({
+        id: generateSnowflakeId(),
+        user_id: followingId,
+        description: `${actorUsername} mulai mengikuti Anda`,
+        category: 'follow',
+      });
     }
 
     return right({
