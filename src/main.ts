@@ -5,7 +5,9 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import * as dotenv from 'dotenv';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import fastifyHelmet from '@fastify/helmet';
 declare const module: any;
 
 dotenv.config();
@@ -20,6 +22,17 @@ async function bootstrap() {
     }),
   );
 
+
+  await app.register(fastifyHelmet, {
+        contentSecurityPolicy: {
+          directives: {
+            defaultSrc: [`'self'`],
+            styleSrc: [`'self'`, `'unsafe-inline'`],
+            imgSrc: [`'self'`, 'data:'],
+            scriptSrc: [`'self'`, `'https: 'unsafe-inline'`],
+          },
+        },
+      })
   // Register plugin fastify multipart
   await app.register(fastifyMultipart, {
     limits: {
@@ -27,7 +40,19 @@ async function bootstrap() {
     },
   });
 
-  app.enableCors();
+  // app.enableCors();
+  const config = new DocumentBuilder()
+    .setTitle('API Social Media')
+    .setDescription('The API description for Social Media')
+    .setVersion('1.0')
+    .addTag('social')
+    .build();
+  const documentFactory = () => SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, documentFactory, {
+    customfavIcon: '/public/logo.png',
+    customCssUrl: ['/public/global.css', '/public/dark.css', '/public/light.css'],
+    customJs: '/public/swagger.js',
+  });
   await app.listen(3000, '0.0.0.0');
 
   if (module.hot) {

@@ -9,6 +9,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
+import { ApiQuery, ApiResponse } from '@nestjs/swagger';
 
 import { AuthGuard } from 'src/libs/guards/authGuard';
 import { FollowsService } from './follows.service';
@@ -18,6 +19,23 @@ export class FollowsController {
   constructor(private readonly followsService: FollowsService) {}
 
   @UseGuards(AuthGuard)
+  @ApiResponse({
+    status: 200,
+    description: 'Berhasil mengikuti pengguna',
+    content: {
+      'application/json': {
+        example: {
+          message: 'Berhasil mengikuti pengguna',
+          follow: {
+            id: '1',
+            followerId: '2',
+            followingId: '3',
+            createdAt: '2025-07-22T13:20:00.000Z',
+          },
+        },
+      },
+    },
+  })
   @Post(':username/follows')
   async followUser(@Request() req, @Param('username') username: string) {
     const result = await this.followsService.followUserByUsername(
@@ -32,6 +50,17 @@ export class FollowsController {
   }
 
   @UseGuards(AuthGuard)
+  @ApiResponse({
+    status: 200,
+    description: 'Berhasil berhenti mengikuti pengguna',
+    content: {
+      'application/json': {
+        example: {
+          message: 'Berhasil berhenti mengikuti pengguna',
+        },
+      },
+    },
+  })
   @Delete(':username/follows')
   async unfollowUser(@Request() req, @Param('username') username: string) {
     const result = await this.followsService.unfollowUserByUsername(
@@ -42,12 +71,31 @@ export class FollowsController {
     return { message: 'Berhasil berhenti mengikuti pengguna' };
   }
 
+  @ApiQuery({ name: 'take', required: true, example: 10 })
+  @ApiQuery({ name: 'page', required: true, example: 1 })
+  @ApiResponse({
+    status: 200,
+    description: 'List of followers',
+    content: {
+      'application/json': {
+        example: {
+          followers: [
+            {
+              username: 'userA',
+              fullName: 'User A',
+              pictureUrl: 'https://cdn.example.com/avatarA.jpg',
+            },
+          ],
+        },
+      },
+    },
+  })
   @Get(':username/followers')
   async getFollowers(
     @Param('username') username: string,
     @Query('take') take?: string,
     @Query('page') page?: string,
-  ): Promise<GetFollowersResponseDto> {
+  ) {
     if (!take || !page)
       throw new BadRequestException('Parameter take dan page harus diisi');
     const parsedTake = parseInt(take);
@@ -77,6 +125,25 @@ export class FollowsController {
     };
   }
 
+  @ApiQuery({ name: 'take', required: true, example: 10 })
+  @ApiQuery({ name: 'page', required: true, example: 1 })
+  @ApiResponse({
+    status: 200,
+    description: 'List of followings',
+    content: {
+      'application/json': {
+        example: {
+          followings: [
+            {
+              username: 'userB',
+              fullName: 'User B',
+              pictureUrl: 'https://cdn.example.com/avatarB.jpg',
+            },
+          ],
+        },
+      },
+    },
+  })
   @Get(':username/followings')
   async getFollowings(
     @Param('username') username: string,

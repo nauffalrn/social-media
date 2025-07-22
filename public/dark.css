@@ -1,0 +1,42 @@
+@media (prefers-color-scheme: dark) {
+  /* body.dark-mode { */
+  body {
+    --swagger-color: #cba6f7;
+    --link-color: #89b4fa;
+    --accept-header-color: #a6e3a1;
+
+    --post-method-color: #f9e2af;
+    --post-method-background-color: transparent;
+    --get-method-color: #a6e3a1;
+    --get-method-background-color: transparent;
+    --head-method-color: #f5c2e7;
+    --head-method-background-color: transparent;
+    --put-method-color: #89b4fa;
+    --put-method-background-color: transparent;
+    --delete-method-color: #f38ba8;
+    --delete-method-background-color: transparent;
+    --options-method-color: #fab387;
+    --options-method-background-color: transparent;
+    --patch-method-color: #cba6f7;
+    --patch-method-background-color: transparent;
+
+    --crust: #08080c;
+    --button-text-color: #14141f; /* crust */
+    --all-bg-color: #14141f; /* base */
+    --secondary-bg-color: #0e0e16; /* mantle */
+    --header-bg-color: #313244; /* surface 0 */
+    --block-bg-color: #45475a; /* surface 1 */
+    --selecter-bg-color: #313244; /* surface 0 */
+
+    --primary-text-color: #cdd6f4;
+    --secondary-text-color: #c0ccf1;
+
+    --block-border-color: rgba(255, 255, 255, 0.08);
+    --block-border-radius: 12px;
+    --innner-block-border-radius: 8px;
+
+    --icons-opacity: 1;
+    --secondary-icon-opacity: 1;
+    --black-icons-filter: invert(1);
+  }
+}

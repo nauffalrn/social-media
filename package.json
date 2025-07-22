@@ -23,7 +23,9 @@
     "db:studio": "drizzle-kit studio --port 3001"
   },
   "dependencies": {
+    "@fastify/helmet": "^13.0.1",
     "@fastify/multipart": "^9.0.3",
+    "@fastify/static": "^8.2.0",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
@@ -31,6 +33,7 @@
     "@nestjs/jwt": "^11.0.0",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/platform-fastify": "^11.1.5",
+    "@nestjs/serve-static": "^5.0.3",
     "@nestjs/swagger": "^11.2.0",
     "@sapphire/snowflake": "^3.5.5",
     "bcrypt": "^6.0.0",

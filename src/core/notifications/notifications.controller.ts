@@ -7,15 +7,42 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from 'src/libs/guards/authGuard';
 import { LoggedInUser } from 'src/libs/helpers/logged-in-user';
 import { NotificationsService } from './notifications.service';
 
+@ApiTags('Notifications')
 @Controller('users')
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
   @UseGuards(AuthGuard)
+  @ApiBearerAuth()
+  @ApiQuery({ name: 'take', required: true, example: 10 })
+  @ApiQuery({ name: 'page', required: true, example: 1 })
+  @ApiResponse({
+    status: 200,
+    description: 'List of notifications',
+    content: {
+      'application/json': {
+        example: {
+          notifications: [
+            {
+              id: '1',
+              description: 'User A liked your post',
+              category: 'like',
+            },
+            {
+              id: '2',
+              description: 'User B commented on your post',
+              category: 'comment',
+            },
+          ],
+        },
+      },
+    },
+  })
   @Get(':username/notifications')
   async getNotifications(
     @Request() req: LoggedInUser,

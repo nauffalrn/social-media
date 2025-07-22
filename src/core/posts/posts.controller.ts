@@ -12,6 +12,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { UploadsService } from 'src/infrastructure/storage/uploads.service';
 import { FastifyFileInterceptor } from 'src/libs/decorators/fastify-file.interceptor';
 import { AuthGuard } from 'src/libs/guards/authGuard';
@@ -28,6 +29,34 @@ export class PostsController {
   ) {}
 
   @UseGuards(AuthGuard)
+  @ApiQuery({ name: 'take', required: true, example: 10 })
+  @ApiQuery({ name: 'page', required: true, example: 1 })
+  @ApiResponse({
+    status: 200,
+    description: 'List of posts',
+    content: {
+      'application/json': {
+        example: {
+          posts: [
+            {
+              id: '1',
+              pictureUrl: 'https://cdn.example.com/image1.jpg',
+              caption: 'Caption pertama',
+              createdAt: '2025-07-22T13:00:00.000Z',
+              user: {
+                username: 'nauffal',
+                pictureUrl: 'https://cdn.example.com/avatar1.jpg',
+              },
+              summaries: {
+                likesCount: 10,
+                commentsCount: 5,
+              },
+            },
+          ],
+        },
+      },
+    },
+  })
   @Get(':username/posts')
   async getUserPosts(
     @Request() req: LoggedInUser,
@@ -92,6 +121,24 @@ export class PostsController {
   }
 
   @UseGuards(AuthGuard)
+  @ApiResponse({
+    status: 200,
+    description: 'Post berhasil dibuat',
+    content: {
+      'application/json': {
+        example: {
+          message: 'Post berhasil dibuat',
+          post: {
+            id: '1',
+            pictureUrl: 'https://cdn.example.com/image1.jpg',
+            caption: 'Caption pertama',
+            createdAt: '2025-07-22T13:00:00.000Z',
+            userId: '123',
+          },
+        },
+      },
+    },
+  })
   @Post(':username/posts')
   @UseInterceptors(FastifyFileInterceptor('file'))
   async create(
@@ -147,6 +194,17 @@ export class PostsController {
   }
 
   @UseGuards(AuthGuard)
+  @ApiResponse({
+    status: 200,
+    description: 'Post berhasil dihapus',
+    content: {
+      'application/json': {
+        example: {
+          message: 'Post berhasil dihapus',
+        },
+      },
+    },
+  })
   @Delete(':username/posts/:postId')
   async delete(
     @Request() req: LoggedInUser,

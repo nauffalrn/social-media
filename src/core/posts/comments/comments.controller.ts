@@ -10,6 +10,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
+import { ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { AuthGuard } from 'src/libs/guards/authGuard';
 import { LoggedInUser } from 'src/libs/helpers/logged-in-user';
 import { CommentsService } from './comments.service';
@@ -21,6 +22,26 @@ export class CommentsController {
   constructor(private readonly commentsService: CommentsService) {}
 
   @UseGuards(AuthGuard)
+  @ApiQuery({ name: 'take', required: true, example: 10 })
+  @ApiQuery({ name: 'page', required: true, example: 1 })
+  @ApiResponse({
+    status: 200,
+    description: 'List of comments',
+    content: {
+      'application/json': {
+        example: {
+          comments: [
+            {
+              id: '1',
+              text: 'Komentar pertama',
+              user: { username: 'userA' },
+              createdAt: '2025-07-22T13:00:00.000Z',
+            },
+          ],
+        },
+      },
+    },
+  })
   @Get(':username/posts/:postId/comments')
   async getPostComments(
     @Param('username') username: string,
@@ -62,6 +83,23 @@ export class CommentsController {
   }
 
   @UseGuards(AuthGuard)
+  @ApiResponse({
+    status: 200,
+    description: 'Komentar berhasil dibuat',
+    content: {
+      'application/json': {
+        example: {
+          message: 'Komentar berhasil dibuat',
+          comment: {
+            id: '1',
+            text: 'Komentar baru',
+            user: { username: 'userA' },
+            createdAt: '2025-07-22T13:00:00.000Z',
+          },
+        },
+      },
+    },
+  })
   @Post(':username/posts/:postId/comments')
   async createComment(
     @Request() req: LoggedInUser,
@@ -86,6 +124,17 @@ export class CommentsController {
   }
 
   @UseGuards(AuthGuard)
+  @ApiResponse({
+    status: 200,
+    description: 'Komentar berhasil dihapus',
+    content: {
+      'application/json': {
+        example: {
+          message: 'Komentar berhasil dihapus',
+        },
+      },
+    },
+  })
   @Delete(':username/posts/:postId/comments/:commentId')
   async deleteComment(
     @Request() req: LoggedInUser,
@@ -107,6 +156,26 @@ export class CommentsController {
   }
 
   @UseGuards(AuthGuard)
+  @ApiQuery({ name: 'take', required: true, example: 10 })
+  @ApiQuery({ name: 'page', required: true, example: 1 })
+  @ApiResponse({
+    status: 200,
+    description: 'List of replies',
+    content: {
+      'application/json': {
+        example: {
+          replies: [
+            {
+              id: '1',
+              text: 'Balasan komentar',
+              user: { username: 'userB' },
+              createdAt: '2025-07-22T13:10:00.000Z',
+            },
+          ],
+        },
+      },
+    },
+  })
   @Get(':username/posts/:postId/comments/:commentId/replies')
   async getReplies(
     @Param('commentId') commentId: string,
@@ -147,6 +216,23 @@ export class CommentsController {
   }
 
   @UseGuards(AuthGuard)
+  @ApiResponse({
+    status: 200,
+    description: 'Balasan komentar berhasil dibuat',
+    content: {
+      'application/json': {
+        example: {
+          message: 'Balasan komentar berhasil dibuat',
+          reply: {
+            id: '1',
+            text: 'Balasan komentar',
+            user: { username: 'userB' },
+            createdAt: '2025-07-22T13:10:00.000Z',
+          },
+        },
+      },
+    },
+  })
   @Post(':username/posts/:postId/comments/:commentId/replies')
   async createReply(
     @Request() req: LoggedInUser,
@@ -173,6 +259,17 @@ export class CommentsController {
   }
 
   @UseGuards(AuthGuard)
+  @ApiResponse({
+    status: 200,
+    description: 'Balasan komentar berhasil dihapus',
+    content: {
+      'application/json': {
+        example: {
+          message: 'Balasan komentar berhasil dihapus',
+        },
+      },
+    },
+  })
   @Delete(':username/posts/:postId/comments/:commentId/replies/:replyId')
   async deleteReply(
     @Request() req: LoggedInUser,
