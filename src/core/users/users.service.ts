@@ -1,5 +1,5 @@
 import { HttpService } from '@nestjs/axios';
-import { Inject, Injectable } from '@nestjs/common';
+import { ConsoleLogger, Inject, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
@@ -77,6 +77,8 @@ export class UsersService {
     private readonly httpService: HttpService,
     private readonly uploadsService: UploadsService,
   ) {}
+
+  private readonly logger = new ConsoleLogger(UsersService.name);
 
   async create(createUserDto: SignUpDto): Promise<CreateUserResult> {
     try {
@@ -218,7 +220,8 @@ export class UsersService {
         accessToken,
       });
     } catch (error) {
-      return left(new ErrorRegister.InputanSalah('Login gagal'));
+      this.logger.error(error);
+      return left(new Error('Terjadi kesalahan, silahkan hubungi pihak kami.'));
     }
   }
 

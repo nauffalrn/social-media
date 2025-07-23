@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  InternalServerErrorException,
   NotFoundException,
   Param,
   Patch,
@@ -23,6 +24,7 @@ import { SignInDto } from './useCases/signIn/dto/sign-in.dto';
 import { SignUpDto } from './useCases/signUp/dto/sign-up.dto';
 import { UpdateProfileDto } from './useCases/updateProfile/update-profile.dto';
 import { UsersService } from './users.service';
+import de from 'zod/v4/locales/de.cjs';
 
 @Controller()
 export class UsersController {
@@ -90,7 +92,19 @@ export class UsersController {
   async login(@Body() loginDto: SignInDto) {
     const result = await this.usersService.login(loginDto);
     if (result.isLeft()) {
-      throw new BadRequestException(result.error.message);
+      const error = result.error;
+      switch(error.name) {
+        case 'InputanSalah': 
+          throw new NotFoundException(error.message);
+        case 'UserNotFound':
+          throw new NotFoundException('Pengguna tidak ditemukan');
+        case 'EmailNotVerified':
+          throw new BadRequestException('Email belum diverifikasi');
+        case 'InvalidPassword':
+          throw new BadRequestException('Kata sandi salah');
+        default:
+          throw new InternalServerErrorException('Terjadi kesalahan, silahkan hubungi pihak kami.');
+      }
     }
     return {
       message: 'Login berhasil',
