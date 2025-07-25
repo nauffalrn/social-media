@@ -127,6 +127,7 @@ export class FollowsService {
         return left(new ErrorRegister.NotFollowing());
       }
 
+      // Hapus follow
       await trx
         .delete(follow)
         .where(
@@ -135,6 +136,21 @@ export class FollowsService {
             eq(follow.following_id, followingId),
           ),
         );
+
+      // Hapus notifikasi follow
+      await trx
+        .delete(notification)
+        .where(
+          and(
+            eq(notification.user_id, followingId),
+            eq(notification.category, 'follow'),
+            eq(
+              notification.description,
+              await this.getFollowNotifDescription(followerId),
+            ),
+          ),
+        );
+
       return right(undefined);
     });
   }
@@ -253,5 +269,16 @@ export class FollowsService {
 
     const response: GetFollowingsResponseDto = { followings };
     return right(response);
+  }
+
+  // Tambahkan helper untuk deskripsi notifikasi follow
+  private async getFollowNotifDescription(followerId: bigint): Promise<string> {
+    const [profileData] = await this.db
+      .select()
+      .from(profile)
+      .where(eq(profile.user_id, followerId))
+      .limit(1);
+    const actorUsername = profileData?.username || 'Seseorang';
+    return `${actorUsername} mulai mengikuti Anda`;
   }
 }

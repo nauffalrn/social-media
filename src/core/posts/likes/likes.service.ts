@@ -76,11 +76,36 @@ export class LikesService {
   async unlikePost(userId: bigint, postId: bigint): Promise<UnlikePostResult> {
     return await this.db.transaction(async (trx) => {
       try {
+        // Hapus like
         await trx
           .delete(post_like)
           .where(
             and(eq(post_like.post_id, postId), eq(post_like.user_id, userId)),
           );
+
+        // Ambil post untuk dapatkan user_id pemilik post
+        const [postData] = await trx
+          .select()
+          .from(post)
+          .where(eq(post.id, postId))
+          .limit(1);
+
+        if (postData) {
+          // Hapus notifikasi like
+          await trx
+            .delete(notification)
+            .where(
+              and(
+                eq(notification.user_id, postData.user_id),
+                eq(notification.category, 'like'),
+                eq(
+                  notification.description,
+                  await this.getLikeNotifDescription(userId),
+                ),
+              ),
+            );
+        }
+
         return right(new UnlikePostResponseDto());
       } catch (error) {
         console.error('Error unliking post:', error);
@@ -89,5 +114,16 @@ export class LikesService {
         );
       }
     });
+  }
+
+  // Tambahkan helper untuk deskripsi notifikasi like
+  private async getLikeNotifDescription(userId: bigint): Promise<string> {
+    const [profileData] = await this.db
+      .select()
+      .from(profile)
+      .where(eq(profile.user_id, userId))
+      .limit(1);
+    const actorUsername = profileData?.username || 'Seseorang';
+    return `${actorUsername} menyukai postinganmu`;
   }
 }

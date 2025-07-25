@@ -166,28 +166,41 @@ export class CommentsService {
     commentId: bigint,
   ): Promise<DeleteCommentResult> {
     return await this.db.transaction(async (trx) => {
-      try {
-        const commentToDelete = await trx
-          .select()
-          .from(comment)
-          .where(and(eq(comment.id, commentId), eq(comment.user_id, userId)))
-          .limit(1);
+      // Ambil comment
+      const [commentData] = await trx
+        .select()
+        .from(comment)
+        .where(eq(comment.id, commentId))
+        .limit(1);
 
-        if (commentToDelete.length === 0) {
-          return left(
-            new ErrorRegister.InputanSalah(
-              'Komentar tidak ditemukan atau Anda tidak berhak menghapusnya',
-            ),
-          );
-        }
-
-        await trx.delete(comment).where(eq(comment.id, commentId));
-
-        return right(undefined);
-      } catch (error) {
-        console.error('Error deleting comment:', error);
-        return left(new ErrorRegister.InputanSalah('Gagal menghapus komentar'));
+      if (!commentData) {
+        return left(new ErrorRegister.InputanSalah('Komentar tidak ditemukan'));
       }
+
+      // Hapus comment
+      await trx.delete(comment).where(eq(comment.id, commentId));
+
+      // Hapus notifikasi comment
+      const [profileData] = await trx
+        .select()
+        .from(profile)
+        .where(eq(profile.user_id, userId))
+        .limit(1);
+      const actorUsername = profileData?.username || 'Seseorang';
+      await trx
+        .delete(notification)
+        .where(
+          and(
+            eq(notification.user_id, commentData.user_id),
+            eq(notification.category, 'comment'),
+            eq(
+              notification.description,
+              `${actorUsername} mengomentari postinganmu`,
+            ),
+          ),
+        );
+
+      return right(undefined);
     });
   }
 
@@ -322,30 +335,41 @@ export class CommentsService {
     replyId: bigint,
   ): Promise<DeleteReplyResult> {
     return await this.db.transaction(async (trx) => {
-      try {
-        const replyToDelete = await trx
-          .select()
-          .from(comment)
-          .where(and(eq(comment.id, replyId), eq(comment.user_id, userId)))
-          .limit(1);
+      // Ambil reply
+      const [replyData] = await trx
+        .select()
+        .from(comment)
+        .where(eq(comment.id, replyId))
+        .limit(1);
 
-        if (replyToDelete.length === 0) {
-          return left(
-            new ErrorRegister.InputanSalah(
-              'Balasan komentar tidak ditemukan atau Anda tidak berhak menghapusnya',
-            ),
-          );
-        }
-
-        await trx.delete(comment).where(eq(comment.id, replyId));
-
-        return right(undefined);
-      } catch (error) {
-        console.error('Error deleting reply:', error);
-        return left(
-          new ErrorRegister.InputanSalah('Gagal menghapus balasan komentar'),
-        );
+      if (!replyData) {
+        return left(new ErrorRegister.InputanSalah('Reply tidak ditemukan'));
       }
+
+      // Hapus reply
+      await trx.delete(comment).where(eq(comment.id, replyId));
+
+      // Hapus notifikasi reply
+      const [profileData] = await trx
+        .select()
+        .from(profile)
+        .where(eq(profile.user_id, userId))
+        .limit(1);
+      const actorUsername = profileData?.username || 'Seseorang';
+      await trx
+        .delete(notification)
+        .where(
+          and(
+            eq(notification.user_id, replyData.user_id),
+            eq(notification.category, 'reply'),
+            eq(
+              notification.description,
+              `${actorUsername} membalas komentarmu`,
+            ),
+          ),
+        );
+
+      return right(undefined);
     });
   }
 }
