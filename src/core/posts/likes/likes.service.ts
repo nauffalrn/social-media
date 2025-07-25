@@ -19,68 +19,72 @@ export class LikesService {
   constructor(@Inject('DB') private db: DrizzleInstance) {}
 
   async likePost(userId: bigint, postId: bigint): Promise<LikePostResult> {
-    try {
-      const existingLike = await this.db
-        .select()
-        .from(post_like)
-        .where(
-          and(eq(post_like.post_id, postId), eq(post_like.user_id, userId)),
-        )
-        .limit(1);
-
-      if (existingLike.length > 0) {
-        return right(undefined); // Sudah like, tidak perlu dilakukan lagi
-      }
-
-      await this.db.insert(post_like).values({
-        id: generateSnowflakeId(),
-        post_id: postId,
-        user_id: userId,
-      });
-
-      // Ambil post dan pemiliknya
-      const [postData] = await this.db
-        .select()
-        .from(post)
-        .where(eq(post.id, postId))
-        .limit(1);
-      if (postData && postData.user_id !== userId) {
-        // Ambil username pelaku
-        const [profileData] = await this.db
+    return await this.db.transaction(async (trx) => {
+      try {
+        const existingLike = await trx
           .select()
-          .from(profile)
-          .where(eq(profile.user_id, userId))
+          .from(post_like)
+          .where(
+            and(eq(post_like.post_id, postId), eq(post_like.user_id, userId)),
+          )
           .limit(1);
-        const actorUsername = profileData?.username || 'Seseorang';
-        await this.db.insert(notification).values({
-          id: generateSnowflakeId(),
-          user_id: postData.user_id,
-          description: `${actorUsername} menyukai postinganmu`,
-          category: 'like',
-        });
-      }
 
-      return right(undefined);
-    } catch (error) {
-      console.error('Error liking post:', error);
-      return left(new ErrorRegister.InputanSalah('Gagal menyukai post'));
-    }
+        if (existingLike.length > 0) {
+          return right(undefined); // Sudah like, tidak perlu dilakukan lagi
+        }
+
+        await trx.insert(post_like).values({
+          id: generateSnowflakeId(),
+          post_id: postId,
+          user_id: userId,
+        });
+
+        // Ambil post dan pemiliknya
+        const [postData] = await trx
+          .select()
+          .from(post)
+          .where(eq(post.id, postId))
+          .limit(1);
+        if (postData && postData.user_id !== userId) {
+          // Ambil username pelaku
+          const [profileData] = await trx
+            .select()
+            .from(profile)
+            .where(eq(profile.user_id, userId))
+            .limit(1);
+          const actorUsername = profileData?.username || 'Seseorang';
+          await trx.insert(notification).values({
+            id: generateSnowflakeId(),
+            user_id: postData.user_id,
+            description: `${actorUsername} menyukai postinganmu`,
+            category: 'like',
+          });
+        }
+
+        return right(undefined);
+      } catch (error) {
+        console.error('Error liking post:', error);
+        return left(new ErrorRegister.InputanSalah('Gagal menyukai post'));
+      }
+    });
   }
 
   async unlikePost(userId: bigint, postId: bigint): Promise<UnlikePostResult> {
-    try {
-      await this.db
-        .delete(post_like)
-        .where(
-          and(eq(post_like.post_id, postId), eq(post_like.user_id, userId)),
-        );
+    return await this.db.transaction(async (trx) => {
+      try {
+        await trx
+          .delete(post_like)
+          .where(
+            and(eq(post_like.post_id, postId), eq(post_like.user_id, userId)),
+          );
 
-      return right(undefined);
-    } catch (error) {
-      console.error('Error unliking post:', error);
-      return left(
-        new ErrorRegister.InputanSalah('Gagal membatalkan suka pada post'),
-      );
-    }
+        return right(undefined);
+      } catch (error) {
+        console.error('Error unliking post:', error);
+        return left(
+          new ErrorRegister.InputanSalah('Gagal membatalkan suka pada post'),
+        );
+      }
+    });
   }
 }

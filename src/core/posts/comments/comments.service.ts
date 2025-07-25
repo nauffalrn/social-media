@@ -7,7 +7,7 @@ import {
   notification,
   post,
   profile,
-} from 'src/infrastructure/database/schema'; // Tambahkan import
+} from 'src/infrastructure/database/schema';
 import {
   extractDateFromSnowflake,
   generateSnowflakeId,
@@ -117,85 +117,83 @@ export class CommentsService {
     postId: bigint,
     text: string,
   ): Promise<CreateCommentResult> {
-    try {
-      const commentId = generateSnowflakeId();
+    return await this.db.transaction(async (trx) => {
+      try {
+        const commentId = generateSnowflakeId();
+        const [inserted] = await trx
+          .insert(comment)
+          .values({
+            id: commentId,
+            post_id: postId,
+            user_id: userId,
+            text: text,
+            parent_id: null,
+          })
+          .returning();
 
-      const [inserted] = await this.db
-        .insert(comment)
-        .values({
-          id: commentId,
-          post_id: postId,
-          user_id: userId,
-          text: text,
-          parent_id: null,
-        })
-        .returning({
-          id: comment.id,
-          text: comment.text,
-          post_id: comment.post_id,
-          user_id: comment.user_id,
-        });
-
-      // Notifikasi ke pemilik post
-      const [postData] = await this.db
-        .select()
-        .from(post)
-        .where(eq(post.id, postId))
-        .limit(1);
-      if (postData && postData.user_id !== userId) {
-        const [profileData] = await this.db
+        // Notifikasi ke pemilik post
+        const [postData] = await trx
           .select()
-          .from(profile)
-          .where(eq(profile.user_id, userId))
+          .from(post)
+          .where(eq(post.id, postId))
           .limit(1);
-        const actorUsername = profileData?.username || 'Seseorang';
-        await this.db.insert(notification).values({
-          id: generateSnowflakeId(),
-          user_id: postData.user_id,
-          description: `${actorUsername} mengomentari postinganmu`,
-          category: 'comment',
-        });
-      }
+        if (postData && postData.user_id !== userId) {
+          const [profileData] = await trx
+            .select()
+            .from(profile)
+            .where(eq(profile.user_id, userId))
+            .limit(1);
+          const actorUsername = profileData?.username || 'Seseorang';
+          await trx.insert(notification).values({
+            id: generateSnowflakeId(),
+            user_id: postData.user_id,
+            description: `${actorUsername} mengomentari postinganmu`,
+            category: 'comment',
+          });
+        }
 
-      return right({
-        id: inserted.id.toString(),
-        text: inserted.text,
-        createdAt: extractDateFromSnowflake(inserted.id),
-        postId: inserted.post_id.toString(),
-        userId: inserted.user_id.toString(),
-      });
-    } catch (error) {
-      console.error('Error creating comment:', error);
-      return left(new ErrorRegister.InputanSalah('Gagal membuat komentar'));
-    }
+        return right({
+          id: inserted.id.toString(),
+          text: inserted.text,
+          createdAt: extractDateFromSnowflake(inserted.id),
+          postId: inserted.post_id.toString(),
+          userId: inserted.user_id.toString(),
+        });
+      } catch (error) {
+        console.error('Error creating comment:', error);
+        return left(new ErrorRegister.InputanSalah('Gagal membuat komentar'));
+      }
+    });
   }
 
   async deleteComment(
     userId: bigint,
     commentId: bigint,
   ): Promise<DeleteCommentResult> {
-    try {
-      const commentToDelete = await this.db
-        .select()
-        .from(comment)
-        .where(and(eq(comment.id, commentId), eq(comment.user_id, userId)))
-        .limit(1);
+    return await this.db.transaction(async (trx) => {
+      try {
+        const commentToDelete = await trx
+          .select()
+          .from(comment)
+          .where(and(eq(comment.id, commentId), eq(comment.user_id, userId)))
+          .limit(1);
 
-      if (commentToDelete.length === 0) {
-        return left(
-          new ErrorRegister.InputanSalah(
-            'Komentar tidak ditemukan atau Anda tidak berhak menghapusnya',
-          ),
-        );
+        if (commentToDelete.length === 0) {
+          return left(
+            new ErrorRegister.InputanSalah(
+              'Komentar tidak ditemukan atau Anda tidak berhak menghapusnya',
+            ),
+          );
+        }
+
+        await trx.delete(comment).where(eq(comment.id, commentId));
+
+        return right(undefined);
+      } catch (error) {
+        console.error('Error deleting comment:', error);
+        return left(new ErrorRegister.InputanSalah('Gagal menghapus komentar'));
       }
-
-      await this.db.delete(comment).where(eq(comment.id, commentId));
-
-      return right(undefined);
-    } catch (error) {
-      console.error('Error deleting comment:', error);
-      return left(new ErrorRegister.InputanSalah('Gagal menghapus komentar'));
-    }
+    });
   }
 
   async getReplies(
@@ -245,89 +243,86 @@ export class CommentsService {
     commentId: bigint,
     text: string,
   ): Promise<CreateReplyResult> {
-    try {
-      const replyId = generateSnowflakeId();
+    return await this.db.transaction(async (trx) => {
+      try {
+        const replyId = generateSnowflakeId();
+        const [inserted] = await trx
+          .insert(comment)
+          .values({
+            id: replyId,
+            post_id: postId,
+            user_id: userId,
+            text: text,
+            parent_id: commentId,
+          })
+          .returning();
 
-      const [inserted] = await this.db
-        .insert(comment)
-        .values({
-          id: replyId,
-          post_id: postId,
-          user_id: userId,
-          text: text,
-          parent_id: commentId,
-        })
-        .returning({
-          id: comment.id,
-          text: comment.text,
-          post_id: comment.post_id,
-          parent_id: comment.parent_id,
-          user_id: comment.user_id,
-        });
-
-      // Notifikasi ke pemilik komentar
-      const [commentData] = await this.db
-        .select()
-        .from(commentTable)
-        .where(eq(commentTable.id, commentId))
-        .limit(1);
-      if (commentData && commentData.user_id !== userId) {
-        const [profileData] = await this.db
+        // Notifikasi ke pemilik komentar
+        const [commentData] = await trx
           .select()
-          .from(profile)
-          .where(eq(profile.user_id, userId))
+          .from(commentTable)
+          .where(eq(commentTable.id, commentId))
           .limit(1);
-        const actorUsername = profileData?.username || 'Seseorang';
-        await this.db.insert(notification).values({
-          id: generateSnowflakeId(),
-          user_id: commentData.user_id,
-          description: `${actorUsername} membalas komentarmu`,
-          category: 'reply',
-        });
-      }
+        if (commentData && commentData.user_id !== userId) {
+          const [profileData] = await trx
+            .select()
+            .from(profile)
+            .where(eq(profile.user_id, userId))
+            .limit(1);
+          const actorUsername = profileData?.username || 'Seseorang';
+          await trx.insert(notification).values({
+            id: generateSnowflakeId(),
+            user_id: commentData.user_id,
+            description: `${actorUsername} membalas komentarmu`,
+            category: 'reply',
+          });
+        }
 
-      return right({
-        id: inserted.id.toString(),
-        text: inserted.text,
-        createdAt: extractDateFromSnowflake(inserted.id),
-        postId: inserted.post_id.toString(),
-        userId: inserted.user_id.toString(),
-      });
-    } catch (error) {
-      console.error('Error creating reply:', error);
-      return left(
-        new ErrorRegister.InputanSalah('Gagal membuat balasan komentar'),
-      );
-    }
+        return right({
+          id: inserted.id.toString(),
+          text: inserted.text,
+          createdAt: extractDateFromSnowflake(inserted.id),
+          postId: inserted.post_id.toString(),
+          userId: inserted.user_id.toString(),
+        });
+      } catch (error) {
+        console.error('Error creating reply:', error);
+        return left(
+          new ErrorRegister.InputanSalah('Gagal membuat balasan komentar'),
+        );
+      }
+    });
   }
 
   async deleteReply(
     userId: bigint,
     replyId: bigint,
   ): Promise<DeleteReplyResult> {
-    try {
-      const replyToDelete = await this.db
-        .select()
-        .from(comment)
-        .where(and(eq(comment.id, replyId), eq(comment.user_id, userId)))
-        .limit(1);
+    return await this.db.transaction(async (trx) => {
+      try {
+        const replyToDelete = await trx
+          .select()
+          .from(comment)
+          .where(and(eq(comment.id, replyId), eq(comment.user_id, userId)))
+          .limit(1);
 
-      if (replyToDelete.length === 0) {
+        if (replyToDelete.length === 0) {
+          return left(
+            new ErrorRegister.InputanSalah(
+              'Balasan komentar tidak ditemukan atau Anda tidak berhak menghapusnya',
+            ),
+          );
+        }
+
+        await trx.delete(comment).where(eq(comment.id, replyId));
+
+        return right(undefined);
+      } catch (error) {
+        console.error('Error deleting reply:', error);
         return left(
-          new ErrorRegister.InputanSalah(
-            'Balasan komentar tidak ditemukan atau Anda tidak berhak menghapusnya',
-          ),
+          new ErrorRegister.InputanSalah('Gagal menghapus balasan komentar'),
         );
       }
-
-      await this.db.delete(comment).where(eq(comment.id, replyId));
-
-      return right(undefined);
-    } catch (error) {
-      console.error('Error deleting reply:', error);
-      return left(
-        new ErrorRegister.InputanSalah('Gagal menghapus balasan komentar'),
-      );
-    }
+    });
   }
 }

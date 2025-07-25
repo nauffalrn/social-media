@@ -13,6 +13,7 @@ import { UsersModule } from './core/users/users.module';
 import { DbModule } from './infrastructure/database/db.module';
 import { EnvModule } from './infrastructure/env/envModule';
 import { UploadsModule } from './infrastructure/storage/uploads.module';
+import { ClsModule } from 'nestjs-cls';
 
 export const appSchema = z.object({
   DATABASE_URL: z.string({ error: 'DATABASE_URL is required' }),
@@ -58,6 +59,7 @@ export const appSchema = z.object({
       }),
       global: true,
     }),
+    ClsModule.forRoot({ global: true }),
   ],
   controllers: [],
   providers: [],

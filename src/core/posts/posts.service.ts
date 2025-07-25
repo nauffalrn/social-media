@@ -1,83 +1,110 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, isNull } from 'drizzle-orm';
+import { DrizzleInstance } from 'src/infrastructure/database';
+import { post, post_tag, profile } from 'src/infrastructure/database/schema';
+import { generateSnowflakeId } from 'src/infrastructure/snowflake/snowflake';
+import { Either, ErrorRegister, left, right } from 'src/libs/helpers/either';
 import { UsersService } from '../users/users.service';
 import { Post } from './entities/post.entity';
 import { CreatePostDto } from './useCases/createPost/dto/create-post.dto';
-import { Either, ErrorRegister, left, right } from 'src/libs/helpers/either';
-import { DrizzleInstance } from 'src/infrastructure/database';
-import { generateSnowflakeId } from 'src/infrastructure/snowflake/snowflake';
-import { post, post_tag, profile } from 'src/infrastructure/database/schema';
 
 type CreatePostResult = Either<ErrorRegister.InputanSalah | Error, Post>;
 type DeletePostResult = Either<ErrorRegister.PostNotFound, void>;
-type FindPostsByUsernameResult = Either<ErrorRegister.ProfilePrivate | ErrorRegister.UserNotFound, any[]>;
+type FindPostsByUsernameResult = Either<
+  ErrorRegister.ProfilePrivate | ErrorRegister.UserNotFound,
+  any[]
+>;
 
 @Injectable()
 export class PostsService {
   constructor(
     private readonly usersService: UsersService,
-    @Inject('DB') private db: DrizzleInstance
+    @Inject('DB') private db: DrizzleInstance,
   ) {}
 
-  async create(userId: bigint, createPostDto: CreatePostDto): Promise<CreatePostResult> {
-    try {
-      const postId = generateSnowflakeId();
+  async create(
+    userId: bigint,
+    createPostDto: CreatePostDto,
+  ): Promise<CreatePostResult> {
+    return await this.db.transaction(async (trx) => {
+      try {
+        const postId = generateSnowflakeId();
+        const [newPost] = await trx
+          .insert(post)
+          .values({
+            id: postId,
+            user_id: userId,
+            picture_url: createPostDto.pictureUrl,
+            caption: createPostDto.caption || '',
+            deleted_at: null,
+          })
+          .returning();
 
-      // Simpan post ke database
-      const [newPost] = await this.db
-        .insert(post)
-        .values({
-          id: postId,
-          user_id: userId,
-          picture_url: createPostDto.pictureUrl,
-          caption: createPostDto.caption || '',
-          deleted_at: null,
-        })
-        .returning();
+        // Simpan tags jika ada
+        if (createPostDto.tags && createPostDto.tags.length > 0) {
+          await Promise.all(
+            createPostDto.tags.map((tagUserId) =>
+              trx.insert(post_tag).values({
+                post_id: postId,
+                user_id: BigInt(tagUserId),
+              }),
+            ),
+          );
+        }
 
-      // Map database result ke entity
-      const postEntity: Post = {
-        id: newPost.id.toString(),
-        userId: newPost.user_id.toString(),
-        pictureUrl: newPost.picture_url,
-        caption: newPost.caption || '',
-        createdAt: new Date(),
-        isDeleted: false,
-      };
+        // Map database result ke entity
+        const postEntity: Post = {
+          id: newPost.id.toString(),
+          userId: newPost.user_id.toString(),
+          pictureUrl: newPost.picture_url,
+          caption: newPost.caption || '',
+          createdAt: new Date(),
+          isDeleted: false,
+        };
 
-      return right(postEntity);
-    } catch (error) {
-      console.error('Error creating post:', error);
-      return left(new ErrorRegister.InputanSalah('Gagal membuat post'));
-    }
+        return right(postEntity);
+      } catch (error) {
+        console.error('Error creating post:', error);
+        return left(new ErrorRegister.InputanSalah('Gagal membuat post'));
+      }
+    });
   }
 
   async delete(userId: bigint, postId: bigint): Promise<DeletePostResult> {
-    // Cek apakah post ada dan milik user tersebut
-    const postToDelete = await this.db
-      .select()
-      .from(post)
-      .where(and(eq(post.id, postId), eq(post.user_id, userId)))
-      .limit(1);
+    return await this.db.transaction(async (trx) => {
+      // Cek apakah post ada dan milik user tersebut
+      const postToDelete = await trx
+        .select()
+        .from(post)
+        .where(and(eq(post.id, postId), eq(post.user_id, userId)))
+        .limit(1);
 
-    if (postToDelete.length === 0) {
-      return left(new ErrorRegister.PostNotFound());
-    }
+      if (postToDelete.length === 0) {
+        return left(new ErrorRegister.PostNotFound());
+      }
 
-    // Update status post menjadi deleted
-    await this.db.update(post).set({ deleted_at: new Date() }).where(eq(post.id, postId));
+      // Update status post menjadi deleted
+      await trx
+        .update(post)
+        .set({ deleted_at: new Date() })
+        .where(eq(post.id, postId));
 
-    return right(undefined);
+      return right(undefined);
+    });
   }
 
   async findPostsByUsername(
     viewerId: bigint,
     username: string,
     take = 9,
-    page = 1
+    page = 1,
   ): Promise<FindPostsByUsernameResult> {
     // Cari user berdasarkan username
-    const profileData = await this.db.select().from(profile).where(eq(profile.username, username)).limit(1);
+    const profileData = await this.db
+      .select()
+      .from(profile)
+      .where(eq(profile.username, username))
+      .limit(1);
 
     if (profileData.length === 0) {
       return left(new ErrorRegister.UserNotFound());
@@ -86,7 +113,10 @@ export class PostsService {
     const userId = profileData[0].user_id;
 
     // Cek apakah viewer dapat melihat postingan user
-    const canViewResult = await this.usersService.canViewUserProfile(viewerId, userId);
+    const canViewResult = await this.usersService.canViewUserProfile(
+      viewerId,
+      userId,
+    );
 
     if (canViewResult.isLeft()) {
       return left(canViewResult.error);
@@ -142,10 +172,14 @@ export class PostsService {
     viewerId: bigint,
     username: string,
     take = 9,
-    page = 1
+    page = 1,
   ): Promise<FindPostsByUsernameResult> {
     // Cari user berdasarkan username
-    const profileData = await this.db.select().from(profile).where(eq(profile.username, username)).limit(1);
+    const profileData = await this.db
+      .select()
+      .from(profile)
+      .where(eq(profile.username, username))
+      .limit(1);
 
     if (profileData.length === 0) {
       return left(new ErrorRegister.UserNotFound());
@@ -154,7 +188,10 @@ export class PostsService {
     const userId = profileData[0].user_id;
 
     // Cek apakah viewer dapat melihat postingan user
-    const canViewResult = await this.usersService.canViewUserProfile(viewerId, userId);
+    const canViewResult = await this.usersService.canViewUserProfile(
+      viewerId,
+      userId,
+    );
 
     if (canViewResult.isLeft()) {
       return left(canViewResult.error);

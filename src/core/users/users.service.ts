@@ -3,6 +3,7 @@ import { ConsoleLogger, Inject, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { ClsService, InjectCls } from 'nestjs-cls';
 import { lastValueFrom } from 'rxjs';
 import { DrizzleInstance } from 'src/infrastructure/database';
 import {
@@ -17,9 +18,9 @@ import { generateSnowflakeId } from 'src/infrastructure/snowflake/snowflake';
 import { UploadsService } from 'src/infrastructure/storage/uploads.service';
 import { Either, ErrorRegister, left, right } from 'src/libs/helpers/either';
 import { User } from './entities/user.entity';
-import { UpdateProfileDto } from './useCases/updateProfile/update-profile.dto';
-import { SignUpDto } from './useCases/signUp/dto/sign-up.dto';
 import { SignInDto } from './useCases/signIn/dto/sign-in.dto';
+import { SignUpDto } from './useCases/signUp/dto/sign-up.dto';
+import { UpdateProfileDto } from './useCases/updateProfile/update-profile.dto';
 
 const SALT_ROUNDS = 10;
 
@@ -76,81 +77,91 @@ export class UsersService {
     private readonly emailService: EmailService,
     private readonly httpService: HttpService,
     private readonly uploadsService: UploadsService,
+    @InjectCls() private readonly cls: ClsService,
   ) {}
 
   private readonly logger = new ConsoleLogger(UsersService.name);
 
   async create(createUserDto: SignUpDto): Promise<CreateUserResult> {
-    try {
-      // Cek email sudah ada
-      const existingEmail = await this.db
-        .select()
-        .from(email)
-        .where(eq(email.value, createUserDto.email))
-        .limit(1);
-      if (existingEmail.length > 0) {
-        return left(new ErrorRegister.EmailAlreadyRegistered());
-      }
+    return await this.db.transaction(async (trx) => {
+      try {
+        // Cek email sudah ada
+        const existingEmail = await trx
+          .select()
+          .from(email)
+          .where(eq(email.value, createUserDto.email))
+          .limit(1);
+        if (existingEmail.length > 0) {
+          return left(new ErrorRegister.EmailAlreadyRegistered());
+        }
 
-      // Insert email
-      const emailId = generateSnowflakeId();
-      await this.db.insert(email).values({
-        id: emailId,
-        value: createUserDto.email,
-        verified_at: process.env.NODE_ENV === 'development' ? new Date() : null, // <-- ini kuncinya
-      });
+        // Insert email
+        const emailId = generateSnowflakeId();
+        await trx.insert(email).values({
+          id: emailId,
+          value: createUserDto.email,
+          verified_at:
+            process.env.NODE_ENV === 'development' ? new Date() : null,
+        });
 
-      // Insert user
-      const userId = generateSnowflakeId();
-      const hashedPassword = await bcrypt.hash(
-        createUserDto.password,
-        SALT_ROUNDS,
-      );
-      await this.db.insert(user).values({
-        id: userId,
-        email_id: emailId,
-        password: hashedPassword,
-        is_private: false,
-      });
+        // Insert user
+        const userId = generateSnowflakeId();
+        const hashedPassword = await bcrypt.hash(
+          createUserDto.password,
+          SALT_ROUNDS,
+        );
+        await trx.insert(user).values({
+          id: userId,
+          email_id: emailId,
+          password: hashedPassword,
+          is_private: false,
+        });
 
-      // Insert profile
-      await this.db.insert(profile).values({
-        user_id: userId,
-        full_name: '',
-        bio: '',
-        username: `user${userId}`, // isi dengan nilai unik, misal: userId atau email
-        picture_url: await this.getRandomAvatarUrl(),
-        is_private: false,
-      });
-
-      // Generate token verifikasi
-      const verifyToken = this.jwtService.sign(
-        { sub: userId.toString(), email: createUserDto.email, type: 'verify' },
-        { expiresIn: '24h' },
-      );
-
-      await this.emailService.sendVerificationEmail(
-        createUserDto.email,
-        verifyToken,
-      );
-
-      return right({
-        user: {
-          id: userId.toString(),
-          email: createUserDto.email,
-          isEmailVerified: false,
-          fullName: '',
+        // Insert profile
+        await trx.insert(profile).values({
+          user_id: userId,
+          full_name: '',
           bio: '',
           username: '',
-          pictureUrl: '',
-          isPrivate: false,
-        },
-        verificationToken: verifyToken,
-      });
-    } catch (error) {
-      console.error('❌ Error detail saat create user:', error); // Tambahkan log ini
-      return left(new ErrorRegister.InputanSalah('Gagal membuat user'));
-    }
+          picture_url: await this.getRandomAvatarUrl(),
+          is_private: false,
+        });
+
+        // Generate token verifikasi
+        const verifyToken = this.jwtService.sign(
+          {
+            sub: userId.toString(),
+            email: createUserDto.email,
+            type: 'verify',
+          },
+          { expiresIn: '24h' },
+        );
+
+        await this.emailService.sendVerificationEmail(
+          createUserDto.email,
+          verifyToken,
+        );
+
+        return right({
+          user: {
+            id: userId.toString(),
+            email: createUserDto.email,
+            isEmailVerified: false,
+            fullName: '',
+            bio: '',
+            username: '',
+            pictureUrl: '',
+            isPrivate: false,
+          },
+          verificationToken: verifyToken,
+        });
+      } catch (error) {
+        this.logger.error(error);
+        return left(
+          new Error('Terjadi kesalahan, silahkan hubungi pihak kami.'),
+        );
+      }
+    });
   }
 
   async login(loginDto: SignInDto): Promise<LoginResult> {
@@ -215,7 +226,6 @@ export class UsersService {
           bio: profileData?.bio || '',
           username: profileData?.username || '',
           pictureUrl: profileData?.picture_url || '',
-          isPrivate: userRecord[0].is_private,
         },
         accessToken,
       });
@@ -229,54 +239,58 @@ export class UsersService {
     userId: bigint,
     updateProfileDto: UpdateProfileDto,
   ): Promise<UpdateProfileResult> {
-    try {
-      await this.db
-        .update(profile)
-        .set({
-          full_name: updateProfileDto.fullName,
-          bio: updateProfileDto.bio,
-          username: updateProfileDto.username,
-          picture_url: updateProfileDto.pictureUrl,
-          is_private: updateProfileDto.isPrivate,
-        })
-        .where(eq(profile.user_id, userId));
+    return await this.db.transaction(async (trx) => {
+      try {
+        await trx
+          .update(profile)
+          .set({
+            full_name: updateProfileDto.fullName,
+            bio: updateProfileDto.bio,
+            username: updateProfileDto.username,
+            picture_url: updateProfileDto.pictureUrl,
+            is_private: updateProfileDto.isPrivate,
+          })
+          .where(eq(profile.user_id, userId));
 
-      // Ambil profile terbaru
-      const profileRecord = await this.db
-        .select()
-        .from(profile)
-        .where(eq(profile.user_id, userId))
-        .limit(1);
-      if (profileRecord.length === 0) {
-        return left(new ErrorRegister.UserNotFound());
-      }
-      const userRecord = await this.db
-        .select()
-        .from(user)
-        .where(eq(user.id, userId))
-        .limit(1);
-      if (userRecord.length === 0) {
-        return left(new ErrorRegister.UserNotFound());
-      }
-      const emailRecord = await this.db
-        .select()
-        .from(email)
-        .where(eq(email.id, userRecord[0].email_id))
-        .limit(1);
+        // Ambil profile terbaru
+        const profileRecord = await trx
+          .select()
+          .from(profile)
+          .where(eq(profile.user_id, userId))
+          .limit(1);
+        if (profileRecord.length === 0) {
+          return left(new ErrorRegister.UserNotFound());
+        }
+        const userRecord = await trx
+          .select()
+          .from(user)
+          .where(eq(user.id, userId))
+          .limit(1);
+        if (userRecord.length === 0) {
+          return left(new ErrorRegister.UserNotFound());
+        }
+        const emailRecord = await trx
+          .select()
+          .from(email)
+          .where(eq(email.id, userRecord[0].email_id))
+          .limit(1);
 
-      return right({
-        id: userId.toString(),
-        email: emailRecord[0].value,
-        isEmailVerified: !!emailRecord[0].verified_at,
-        fullName: profileRecord[0].full_name,
-        bio: profileRecord[0].bio,
-        username: profileRecord[0].username,
-        pictureUrl: profileRecord[0].picture_url,
-        isPrivate: userRecord[0].is_private,
-      });
-    } catch (error) {
-      return left(new ErrorRegister.InputanSalah('Gagal update profile'));
-    }
+        return right({
+          id: userId.toString(),
+          email: emailRecord[0].value,
+          isEmailVerified: !!emailRecord[0].verified_at,
+          fullName: profileRecord[0].full_name,
+          bio: profileRecord[0].bio,
+          username: profileRecord[0].username,
+          pictureUrl: profileRecord[0].picture_url,
+        });
+      } catch (error) {
+        this.logger.error(error);
+        return left(
+          new Error('Terjadi kesalahan, silahkan hubungi pihak kami.'),
+        );
+      }
+    });
   }
 
   async findById(userId: bigint): Promise<FindUserResult> {
@@ -464,18 +478,20 @@ export class UsersService {
   }
 
   async markEmailVerified(userId: bigint): Promise<void> {
-    // Ambil user
-    const userRecord = await this.db
-      .select()
-      .from(user)
-      .where(eq(user.id, userId))
-      .limit(1);
-    if (userRecord.length === 0) return;
-    const emailId = userRecord[0].email_id;
-    await this.db
-      .update(email)
-      .set({ verified_at: new Date() })
-      .where(eq(email.id, emailId));
+    return await this.db.transaction(async (trx) => {
+      // Ambil user
+      const userRecord = await trx
+        .select()
+        .from(user)
+        .where(eq(user.id, userId))
+        .limit(1);
+      if (userRecord.length === 0) return;
+      const emailId = userRecord[0].email_id;
+      await trx
+        .update(email)
+        .set({ verified_at: new Date() })
+        .where(eq(email.id, emailId));
+    });
   }
 
   // Tambahkan method ini di bawah class UsersService
@@ -497,7 +513,8 @@ export class UsersService {
         );
       return uploadedUrl;
     } catch (err) {
-      // fallback jika gagal, pakai URL randomuser langsung
+      this.logger.error(err);
+      // Return default avatar URL if upload fails
       return url;
     }
   }

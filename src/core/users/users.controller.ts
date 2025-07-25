@@ -24,7 +24,6 @@ import { SignInDto } from './useCases/signIn/dto/sign-in.dto';
 import { SignUpDto } from './useCases/signUp/dto/sign-up.dto';
 import { UpdateProfileDto } from './useCases/updateProfile/update-profile.dto';
 import { UsersService } from './users.service';
-import de from 'zod/v4/locales/de.cjs';
 
 @Controller()
 export class UsersController {
@@ -93,8 +92,8 @@ export class UsersController {
     const result = await this.usersService.login(loginDto);
     if (result.isLeft()) {
       const error = result.error;
-      switch(error.name) {
-        case 'InputanSalah': 
+      switch (error.name) {
+        case 'InputanSalah':
           throw new NotFoundException(error.message);
         case 'UserNotFound':
           throw new NotFoundException('Pengguna tidak ditemukan');
@@ -103,7 +102,8 @@ export class UsersController {
         case 'InvalidPassword':
           throw new BadRequestException('Kata sandi salah');
         default:
-          throw new InternalServerErrorException('Terjadi kesalahan, silahkan hubungi pihak kami.');
+          throw new InternalServerErrorException('Terjadi kesalahan, silahkan hubungi pihak kami.',
+          );
       }
     }
     return {

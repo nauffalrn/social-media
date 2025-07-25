@@ -37,7 +37,6 @@ export const updateProfileSchema = z
     bio: z.string().optional(),
     username: z.string().optional(),
     pictureUrl: z.string().url('URL profil tidak valid').optional(),
-    isPrivate: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).some((key) => data[key] !== undefined), {
     message: 'Setidaknya satu field harus diisi untuk update profil',

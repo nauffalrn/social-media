@@ -5,7 +5,7 @@ import {
   follow,
   notification,
   profile,
-} from 'src/infrastructure/database/schema'; 
+} from 'src/infrastructure/database/schema';
 import {
   extractDateFromSnowflake,
   generateSnowflakeId,
@@ -40,66 +40,68 @@ export class FollowsService {
     followerId: bigint,
     followingId: bigint,
   ): Promise<FollowUserResult> {
-    if (followerId === followingId) {
-      return left(new ErrorRegister.CannotFollowSelf());
-    }
+    return await this.db.transaction(async (trx) => {
+      if (followerId === followingId) {
+        return left(new ErrorRegister.CannotFollowSelf());
+      }
 
-    const existingFollow = await this.db
-      .select()
-      .from(follow)
-      .where(
-        and(
-          eq(follow.follower_id, followerId),
-          eq(follow.following_id, followingId),
-        ),
-      )
-      .limit(1);
-
-    if (existingFollow.length > 0) {
-      return left(new ErrorRegister.AlreadyFollowing());
-    }
-
-    const [inserted] = await this.db
-      .insert(follow)
-      .values({
-        id: generateSnowflakeId(),
-        follower_id: followerId,
-        following_id: followingId,
-      })
-      .onConflictDoNothing({
-        target: [follow.follower_id, follow.following_id],
-      })
-      .returning({
-        id: follow.id,
-        follower_id: follow.follower_id,
-        following_id: follow.following_id,
-      });
-
-    if (!inserted) {
-      return left(new ErrorRegister.AlreadyFollowing());
-    }
-
-    // Notifikasi ke user yang di-follow
-    if (followingId !== followerId) {
-      const [profileData] = await this.db
+      const existingFollow = await trx
         .select()
-        .from(profile)
-        .where(eq(profile.user_id, followerId))
+        .from(follow)
+        .where(
+          and(
+            eq(follow.follower_id, followerId),
+            eq(follow.following_id, followingId),
+          ),
+        )
         .limit(1);
-      const actorUsername = profileData?.username || 'Seseorang';
-      await this.db.insert(notification).values({
-        id: generateSnowflakeId(),
-        user_id: followingId,
-        description: `${actorUsername} mulai mengikuti Anda`,
-        category: 'follow',
-      });
-    }
 
-    return right({
-      id: inserted.id.toString(),
-      followerId: inserted.follower_id.toString(),
-      followingId: inserted.following_id.toString(),
-      createdAt: extractDateFromSnowflake(inserted.id),
+      if (existingFollow.length > 0) {
+        return left(new ErrorRegister.AlreadyFollowing());
+      }
+
+      const [inserted] = await trx
+        .insert(follow)
+        .values({
+          id: generateSnowflakeId(),
+          follower_id: followerId,
+          following_id: followingId,
+        })
+        .onConflictDoNothing({
+          target: [follow.follower_id, follow.following_id],
+        })
+        .returning({
+          id: follow.id,
+          follower_id: follow.follower_id,
+          following_id: follow.following_id,
+        });
+
+      if (!inserted) {
+        return left(new ErrorRegister.AlreadyFollowing());
+      }
+
+      // Notifikasi ke user yang di-follow
+      if (followingId !== followerId) {
+        const [profileData] = await trx
+          .select()
+          .from(profile)
+          .where(eq(profile.user_id, followerId))
+          .limit(1);
+        const actorUsername = profileData?.username || 'Seseorang';
+        await trx.insert(notification).values({
+          id: generateSnowflakeId(),
+          user_id: followingId,
+          description: `${actorUsername} mulai mengikuti Anda`,
+          category: 'follow',
+        });
+      }
+
+      return right({
+        id: inserted.id.toString(),
+        followerId: inserted.follower_id.toString(),
+        followingId: inserted.following_id.toString(),
+        createdAt: extractDateFromSnowflake(inserted.id),
+      });
     });
   }
 
@@ -107,30 +109,32 @@ export class FollowsService {
     followerId: bigint,
     followingId: bigint,
   ): Promise<UnfollowUserResult> {
-    const existingFollow = await this.db
-      .select()
-      .from(follow)
-      .where(
-        and(
-          eq(follow.follower_id, followerId),
-          eq(follow.following_id, followingId),
-        ),
-      )
-      .limit(1);
+    return await this.db.transaction(async (trx) => {
+      const existingFollow = await trx
+        .select()
+        .from(follow)
+        .where(
+          and(
+            eq(follow.follower_id, followerId),
+            eq(follow.following_id, followingId),
+          ),
+        )
+        .limit(1);
 
-    if (existingFollow.length === 0) {
-      return left(new ErrorRegister.NotFollowing());
-    }
+      if (existingFollow.length === 0) {
+        return left(new ErrorRegister.NotFollowing());
+      }
 
-    await this.db
-      .delete(follow)
-      .where(
-        and(
-          eq(follow.follower_id, followerId),
-          eq(follow.following_id, followingId),
-        ),
-      );
-    return right(undefined);
+      await trx
+        .delete(follow)
+        .where(
+          and(
+            eq(follow.follower_id, followerId),
+            eq(follow.following_id, followingId),
+          ),
+        );
+      return right(undefined);
+    });
   }
 
   async followUserByUsername(
@@ -199,7 +203,13 @@ export class FollowsService {
       .limit(take)
       .offset(offset);
 
-    return right(followerRecords);
+    return right(
+      followerRecords.map((record) => ({
+        fullName: record.fullName || '',
+        username: record.username || '',
+        pictureUrl: record.pictureUrl || '',
+      })),
+    );
   }
 
   async getFollowingsByUsername(
@@ -232,6 +242,12 @@ export class FollowsService {
       .limit(take)
       .offset(offset);
 
-    return right(followingRecords);
+    return right(
+      followingRecords.map((record) => ({
+        fullName: record.fullName || '',
+        username: record.username || '',
+        pictureUrl: record.pictureUrl || '',
+      })),
+    );
   }
 }
