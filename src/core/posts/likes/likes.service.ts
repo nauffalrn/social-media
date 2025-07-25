@@ -9,10 +9,14 @@ import {
 } from 'src/infrastructure/database/schema'; // Tambahkan import
 import { generateSnowflakeId } from 'src/infrastructure/snowflake/snowflake';
 import { Either, ErrorRegister, left, right } from 'src/libs/helpers/either';
+import { UnlikePostResponseDto } from './likesPost/useCases/unlikePost/dto/unlike-post-response.dto';
 
 // Definisikan tipe return yang jelas
 type LikePostResult = Either<ErrorRegister.InputanSalah, void>;
-type UnlikePostResult = Either<ErrorRegister.InputanSalah, void>;
+type UnlikePostResult = Either<
+  ErrorRegister.InputanSalah,
+  UnlikePostResponseDto
+>;
 
 @Injectable()
 export class LikesService {
@@ -77,8 +81,7 @@ export class LikesService {
           .where(
             and(eq(post_like.post_id, postId), eq(post_like.user_id, userId)),
           );
-
-        return right(undefined);
+        return right(new UnlikePostResponseDto());
       } catch (error) {
         console.error('Error unliking post:', error);
         return left(

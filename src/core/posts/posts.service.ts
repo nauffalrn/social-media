@@ -1,18 +1,28 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { DrizzleInstance } from 'src/infrastructure/database';
-import { post, post_tag, profile } from 'src/infrastructure/database/schema';
+import {
+  comment,
+  post,
+  post_like,
+  post_tag,
+  profile,
+} from 'src/infrastructure/database/schema';
 import { generateSnowflakeId } from 'src/infrastructure/snowflake/snowflake';
 import { Either, ErrorRegister, left, right } from 'src/libs/helpers/either';
 import { UsersService } from '../users/users.service';
-import { Post } from './entities/post.entity';
+import { CreatePostResponseDto } from './useCases/createPost/dto/create-post-response.dto';
 import { CreatePostDto } from './useCases/createPost/dto/create-post.dto';
+import { GetPostsResponseDto } from './useCases/searchPost/dto/get-posts-response.dto';
 
-type CreatePostResult = Either<ErrorRegister.InputanSalah | Error, Post>;
+type CreatePostResult = Either<
+  ErrorRegister.InputanSalah | Error,
+  CreatePostResponseDto
+>;
 type DeletePostResult = Either<ErrorRegister.PostNotFound, void>;
 type FindPostsByUsernameResult = Either<
   ErrorRegister.ProfilePrivate | ErrorRegister.UserNotFound,
-  any[]
+  GetPostsResponseDto
 >;
 
 @Injectable()
@@ -52,8 +62,7 @@ export class PostsService {
           );
         }
 
-        // Map database result ke entity
-        const postEntity: Post = {
+        const postResponse: CreatePostResponseDto = {
           id: newPost.id.toString(),
           userId: newPost.user_id.toString(),
           pictureUrl: newPost.picture_url,
@@ -62,7 +71,7 @@ export class PostsService {
           isDeleted: false,
         };
 
-        return right(postEntity);
+        return right(postResponse);
       } catch (error) {
         console.error('Error creating post:', error);
         return left(new ErrorRegister.InputanSalah('Gagal membuat post'));
@@ -150,22 +159,49 @@ export class PostsService {
       .orderBy(desc(post.id));
 
     // Map hasil query ke format yang sesuai
-    const mappedPosts = postsResult.map((result) => ({
-      id: result.post.id.toString(),
-      pictureUrl: result.post.picture_url,
-      caption: result.post.caption,
-      createdAt: new Date().toISOString(), // Akan diambil dari DB
-      user: {
-        username: result.profile.username,
-        pictureUrl: result.profile.picture_url,
-      },
-      summaries: {
-        likesCount: 0, // Tambahkan logika untuk menghitung likes
-        commentsCount: 0, // Tambahkan logika untuk menghitung comments
-      },
-    }));
+    const mappedPosts = await Promise.all(
+      postsResult.map(async (result) => {
+        // Hitung jumlah likes
+        const [{ count: likesCount }] = await this.db
+          .select({ count: sql`count(*)` })
+          .from(post_like)
+          .where(eq(post_like.post_id, result.post.id));
 
-    return right(mappedPosts);
+        // Hitung jumlah comments
+        const [{ count: commentsCount }] = await this.db
+          .select({ count: sql`count(*)` })
+          .from(comment)
+          .where(
+            and(eq(comment.post_id, result.post.id), isNull(comment.parent_id)),
+          );
+
+        // Ambil tags
+        const tagsResult = await this.db
+          .select({ user_id: post_tag.user_id })
+          .from(post_tag)
+          .where(eq(post_tag.post_id, result.post.id));
+        const tags = tagsResult.map((tag) => tag.user_id.toString());
+
+        return {
+          id: result.post.id.toString(),
+          pictureUrl: result.post.picture_url,
+          caption: result.post.caption,
+          tags, // <-- tambahkan ini
+          createdAt: new Date().toISOString(),
+          user: {
+            username: result.profile.username ?? '',
+            pictureUrl: result.profile.picture_url ?? '',
+          },
+          summaries: {
+            likesCount: Number(likesCount) || 0,
+            commentsCount: Number(commentsCount) || 0,
+          },
+        };
+      }),
+    );
+
+    const response: GetPostsResponseDto = { posts: mappedPosts };
+    return right(response);
   }
 
   async findTaggedPostsByUsername(
@@ -226,21 +262,48 @@ export class PostsService {
       .orderBy(desc(post.id));
 
     // Map hasil query ke format yang sesuai
-    const mappedPosts = postsResult.map((result) => ({
-      id: result.post.id.toString(),
-      pictureUrl: result.post.picture_url,
-      caption: result.post.caption,
-      createdAt: new Date().toISOString(), // Akan diambil dari DB
-      user: {
-        username: result.profile.username,
-        pictureUrl: result.profile.picture_url,
-      },
-      summaries: {
-        likesCount: 0, // Implementasi perhitungan likes
-        commentsCount: 0, // Implementasi perhitungan komentar
-      },
-    }));
+    const mappedTaggedPosts = await Promise.all(
+      postsResult.map(async (result) => {
+        // Hitung jumlah likes
+        const [{ count: likesCount }] = await this.db
+          .select({ count: sql`count(*)` })
+          .from(post_like)
+          .where(eq(post_like.post_id, result.post.id));
 
-    return right(mappedPosts);
+        // Hitung jumlah comments
+        const [{ count: commentsCount }] = await this.db
+          .select({ count: sql`count(*)` })
+          .from(comment)
+          .where(
+            and(eq(comment.post_id, result.post.id), isNull(comment.parent_id)),
+          );
+
+        // Ambil tags
+        const tagsResult = await this.db
+          .select({ user_id: post_tag.user_id })
+          .from(post_tag)
+          .where(eq(post_tag.post_id, result.post.id));
+        const tags = tagsResult.map((tag) => tag.user_id.toString());
+
+        return {
+          id: result.post.id.toString(),
+          pictureUrl: result.post.picture_url,
+          caption: result.post.caption,
+          tags, // <-- tambahkan ini
+          createdAt: new Date().toISOString(),
+          user: {
+            username: result.profile.username ?? '',
+            pictureUrl: result.profile.picture_url ?? '',
+          },
+          summaries: {
+            likesCount: Number(likesCount) || 0,
+            commentsCount: Number(commentsCount) || 0,
+          },
+        };
+      }),
+    );
+
+    const taggedResponse: GetPostsResponseDto = { posts: mappedTaggedPosts };
+    return right(taggedResponse);
   }
 }

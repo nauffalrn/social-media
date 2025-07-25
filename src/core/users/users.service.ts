@@ -18,28 +18,12 @@ import { generateSnowflakeId } from 'src/infrastructure/snowflake/snowflake';
 import { UploadsService } from 'src/infrastructure/storage/uploads.service';
 import { Either, ErrorRegister, left, right } from 'src/libs/helpers/either';
 import { User } from './entities/user.entity';
+import { GetProfileResponseDto } from './useCases/checkProfile/dto/get-profile-response.dto';
 import { SignInDto } from './useCases/signIn/dto/sign-in.dto';
 import { SignUpDto } from './useCases/signUp/dto/sign-up.dto';
 import { UpdateProfileDto } from './useCases/updateProfile/update-profile.dto';
 
 const SALT_ROUNDS = 10;
-
-// Update definisi tipe untuk PublicProfileOutput agar sesuai dengan GetProfileResponseDto
-type PublicProfileOutput = {
-  username: string;
-  fullName: string;
-  bio: string;
-  pictureUrl: string;
-  summaries: {
-    postsCounts: number;
-    followersCount: number;
-    followingsCount: number;
-  };
-  recentPosts: Array<{
-    id: string;
-    pictureUrl: string;
-  }>;
-};
 
 // Type definitions untuk hasil service
 type CreateUserResult = Either<
@@ -66,7 +50,7 @@ type UpdateProfileResult = Either<
   ErrorRegister.UserNotFound | ErrorRegister.InputanSalah,
   Omit<User, 'password'>
 >;
-type FindUserResult = Either<ErrorRegister.UserNotFound, PublicProfileOutput>;
+type FindUserResult = Either<ErrorRegister.UserNotFound, GetProfileResponseDto>;
 type CanViewProfileResult = Either<ErrorRegister.UserNotFound, boolean>;
 
 @Injectable()
@@ -114,7 +98,6 @@ export class UsersService {
           id: userId,
           email_id: emailId,
           password: hashedPassword,
-          is_private: false,
         });
 
         // Insert profile
@@ -279,10 +262,10 @@ export class UsersService {
           id: userId.toString(),
           email: emailRecord[0].value,
           isEmailVerified: !!emailRecord[0].verified_at,
-          fullName: profileRecord[0].full_name,
-          bio: profileRecord[0].bio,
-          username: profileRecord[0].username,
-          pictureUrl: profileRecord[0].picture_url,
+          fullName: profileRecord[0].full_name ?? undefined,
+          bio: profileRecord[0].bio ?? undefined,
+          username: profileRecord[0].username ?? undefined,
+          pictureUrl: profileRecord[0].picture_url ?? undefined,
         });
       } catch (error) {
         this.logger.error(error);
@@ -341,7 +324,7 @@ export class UsersService {
       .limit(3);
 
     // Format response sesuai PublicProfileOutput (tanpa id dan email)
-    const userProfile: PublicProfileOutput = {
+    const userProfile: GetProfileResponseDto = {
       username: profileData?.username || '',
       fullName: profileData?.full_name || '',
       bio: profileData?.bio || '',
@@ -418,7 +401,7 @@ export class UsersService {
       .limit(3);
 
     // Format response sesuai GetProfileResponseDto
-    const userProfile: PublicProfileOutput = {
+    const userProfile: GetProfileResponseDto = {
       username: profileRecord[0].username || '',
       fullName: profileRecord[0].full_name || '',
       bio: profileRecord[0].bio || '',

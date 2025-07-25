@@ -1,8 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { DrizzleInstance } from 'src/infrastructure/database';
 import {
   comment,
+  comment_like,
   comment as commentTable,
   notification,
   post,
@@ -13,59 +14,29 @@ import {
   generateSnowflakeId,
 } from 'src/infrastructure/snowflake/snowflake';
 import { Either, ErrorRegister, left, right } from 'src/libs/helpers/either';
-
-// Definisi tipe untuk nilai return
-interface CommentOutput {
-  id: string;
-  text: string;
-  createdAt: Date;
-  user: {
-    username: string;
-    pictureUrl: string | null;
-  };
-  summaries: {
-    likesCount: number;
-    repliesCount: number;
-  };
-}
-
-interface ReplyOutput {
-  id: string;
-  text: string;
-  createdAt: Date;
-  user: {
-    username: string;
-    pictureUrl: string | null;
-  };
-  summaries: {
-    likesCount: number;
-  };
-}
-
-interface CommentCreateOutput {
-  id: string;
-  text: string;
-  createdAt: Date;
-  postId: string;
-  userId: string;
-}
-
-interface ReplyCreateOutput extends CommentCreateOutput {
-  commentId?: string;
-}
+import { CreatePostCommentResponseDto } from './useCases/createPostComment/dto/create-post-comment-response.dto';
+import { CreateRepliedCommentResponseDto } from './useCases/createRepliedComment/dto/create-replied-comment-response.dto';
+import { GetPostCommentsResponseDto } from './useCases/getPostComments/dto/get-post-comments-response.dto';
+import { GetRepliedCommentsResponseDto } from './useCases/getRepliedComments/dto/get-replied-comments-response.dto';
 
 // Definisi tipe result
 type GetPostCommentsResult = Either<
   ErrorRegister.InputanSalah,
-  CommentOutput[]
+  GetPostCommentsResponseDto
 >;
 type CreateCommentResult = Either<
   ErrorRegister.InputanSalah,
-  CommentCreateOutput
+  CreatePostCommentResponseDto
 >;
 type DeleteCommentResult = Either<ErrorRegister.InputanSalah, void>;
-type GetRepliesResult = Either<ErrorRegister.InputanSalah, ReplyOutput[]>;
-type CreateReplyResult = Either<ErrorRegister.InputanSalah, ReplyCreateOutput>;
+type GetRepliesResult = Either<
+  ErrorRegister.InputanSalah,
+  GetRepliedCommentsResponseDto
+>;
+type CreateReplyResult = Either<
+  ErrorRegister.InputanSalah,
+  CreateRepliedCommentResponseDto
+>;
 type DeleteReplyResult = Either<ErrorRegister.InputanSalah, void>;
 
 @Injectable()
@@ -94,18 +65,42 @@ export class CommentsService {
         .offset((page - 1) * take)
         .orderBy(desc(comment.id));
 
-      const mappedComments = comments.map((c) => ({
-        id: c.id.toString(),
-        text: c.text,
-        createdAt: extractDateFromSnowflake(c.id),
-        user: c.user,
-        summaries: {
-          likesCount: 0,
-          repliesCount: 0,
-        },
-      }));
+      // mapping comments
+      const mappedComments = await Promise.all(
+        comments.map(async (c) => {
+          // Hitung jumlah likes
+          const [{ count: likesCount }] = await this.db
+            .select({ count: sql`count(*)` })
+            .from(comment_like)
+            .where(eq(comment_like.comment_id, c.id));
 
-      return right(mappedComments);
+          // Hitung jumlah replies
+          const [{ count: repliesCount }] = await this.db
+            .select({ count: sql`count(*)` })
+            .from(comment)
+            .where(eq(comment.parent_id, c.id));
+
+          return {
+            id: c.id.toString(),
+            text: c.text,
+            createdAt: extractDateFromSnowflake(c.id).toString(),
+            user: {
+              username: c.user.username ?? '',
+              pictureUrl: c.user.pictureUrl ?? '',
+            },
+            summaries: {
+              likesCount: Number(likesCount) || 0,
+              repliesCount: Number(repliesCount) || 0,
+            },
+          };
+        }),
+      );
+
+      const response: GetPostCommentsResponseDto = {
+        comments: mappedComments,
+      };
+
+      return right(response);
     } catch (error) {
       console.error('Error getting post comments:', error);
       return left(new ErrorRegister.InputanSalah('Gagal mengambil komentar'));
@@ -218,17 +213,43 @@ export class CommentsService {
         .offset((page - 1) * take)
         .orderBy(desc(comment.id));
 
-      const mappedReplies = replies.map((r) => ({
-        id: r.id.toString(),
-        text: r.text,
-        createdAt: extractDateFromSnowflake(r.id),
-        user: r.user,
-        summaries: {
-          likesCount: 0,
-        },
-      }));
+      // mapping replies
+      const mappedReplies = await Promise.all(
+        replies.map(async (r) => {
+          // Hitung jumlah likes
+          const [{ count: likesCount }] = await this.db
+            .select({ count: sql`count(*)` })
+            .from(comment_like)
+            .where(eq(comment_like.comment_id, r.id));
 
-      return right(mappedReplies);
+          // Hitung jumlah replies
+          const [{ count: repliesCount }] = await this.db
+            .select({ count: sql`count(*)` })
+            .from(comment)
+            .where(eq(comment.parent_id, r.id));
+
+          return {
+            id: r.id.toString(),
+            commentId: commentId.toString(),
+            text: r.text,
+            createdAt: extractDateFromSnowflake(r.id).toString(),
+            user: {
+              username: r.user.username ?? '',
+              pictureUrl: r.user.pictureUrl ?? '',
+            },
+            summaries: {
+              likesCount: Number(likesCount) || 0,
+              repliesCount: Number(repliesCount) || 0,
+            },
+          };
+        }),
+      );
+
+      const response: GetRepliedCommentsResponseDto = {
+        replies: mappedReplies,
+      };
+
+      return right(response);
     } catch (error) {
       console.error('Error getting replies:', error);
       return left(
@@ -278,13 +299,15 @@ export class CommentsService {
           });
         }
 
-        return right({
+        const response: CreateRepliedCommentResponseDto = {
           id: inserted.id.toString(),
           text: inserted.text,
           createdAt: extractDateFromSnowflake(inserted.id),
           postId: inserted.post_id.toString(),
           userId: inserted.user_id.toString(),
-        });
+        };
+
+        return right(response);
       } catch (error) {
         console.error('Error creating reply:', error);
         return left(

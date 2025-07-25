@@ -3,16 +3,11 @@ import { eq } from 'drizzle-orm';
 import { DrizzleInstance } from 'src/infrastructure/database';
 import { notification } from 'src/infrastructure/database/schema';
 import { Either, left, right} from 'src/libs/helpers/either';
+import { GetNotificationsResponseDto } from './useCases/getNotifications/dto/get-notifications-response.dto';
 
-// Definisi tipe untuk nilai return
-interface NotificationOutput {
-  id: string;
-  description: string;
-  category: string;
-}
 
 // Definisi tipe result
-type GetUserNotificationsResult = Either<Error, NotificationOutput[]>;
+type GetUserNotificationsResult = Either<Error, GetNotificationsResponseDto>;
 
 @Injectable()
 export class NotificationsService {
@@ -35,7 +30,7 @@ export class NotificationsService {
         category: n.category,
       }));
 
-      return right(mappedNotifications);
+      return right({ notifications: mappedNotifications });
     } catch (error) {
       console.error('Error fetching notifications:', error);
       return left(new Error('Gagal mengambil notifikasi'));

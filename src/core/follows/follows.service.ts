@@ -12,6 +12,8 @@ import {
 } from 'src/infrastructure/snowflake/snowflake';
 import { Either, ErrorRegister, left, right } from 'src/libs/helpers/either';
 import { Follow } from './entities/follow.entity';
+import { GetFollowersResponseDto } from './useCases/checkFollowers/dto/get-followers-response.dto';
+import { GetFollowingsResponseDto } from './useCases/checkFollowings/dto/get-followings-response.dto';
 
 type FollowUserResult = Either<
   | ErrorRegister.CannotFollowSelf
@@ -25,11 +27,11 @@ type UnfollowUserResult = Either<
 >;
 type GetFollowersResult = Either<
   ErrorRegister.UserNotFound,
-  { fullName: string; username: string; pictureUrl: string }[]
+  GetFollowersResponseDto
 >;
 type GetFollowingsResult = Either<
   ErrorRegister.UserNotFound,
-  { fullName: string; username: string; pictureUrl: string }[]
+  GetFollowingsResponseDto
 >;
 
 @Injectable()
@@ -203,13 +205,14 @@ export class FollowsService {
       .limit(take)
       .offset(offset);
 
-    return right(
-      followerRecords.map((record) => ({
-        fullName: record.fullName || '',
-        username: record.username || '',
-        pictureUrl: record.pictureUrl || '',
-      })),
-    );
+    const followers = followerRecords.map((record) => ({
+      fullName: record.fullName || '',
+      username: record.username || '',
+      pictureUrl: record.pictureUrl || '',
+    }));
+
+    const response: GetFollowersResponseDto = { followers };
+    return right(response);
   }
 
   async getFollowingsByUsername(
@@ -242,12 +245,13 @@ export class FollowsService {
       .limit(take)
       .offset(offset);
 
-    return right(
-      followingRecords.map((record) => ({
-        fullName: record.fullName || '',
-        username: record.username || '',
-        pictureUrl: record.pictureUrl || '',
-      })),
-    );
+    const followings = followingRecords.map((record) => ({
+      fullName: record.fullName || '',
+      username: record.username || '',
+      pictureUrl: record.pictureUrl || '',
+    }));
+
+    const response: GetFollowingsResponseDto = { followings };
+    return right(response);
   }
 }

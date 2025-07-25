@@ -71,7 +71,7 @@ export class NotificationsController {
     }
 
     return {
-      notifications: result.value.map((n) => ({
+      notifications: result.value.notifications.map((n) => ({
         id: n.id,
         description: n.description,
         category: n.category,

@@ -89,7 +89,7 @@ export class FollowsController {
     if (result.isLeft()) throw new BadRequestException(result.error.message);
 
     return {
-      followers: result.value.map((f) => ({
+      followers: result.value.followers.map((f) => ({
         username: f.username,
         fullName: f.fullName,
         pictureUrl: f.pictureUrl ?? '',
