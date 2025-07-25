@@ -79,13 +79,18 @@ export class UsersService {
           return left(new ErrorRegister.EmailAlreadyRegistered());
         }
 
+        // Ambil email utama dari env
+        const mainEmail = process.env.RESEND_MAIN_EMAIL;
+
+        // Tentukan apakah auto verified
+        const isAutoVerified = createUserDto.email !== mainEmail;
+
         // Insert email
         const emailId = generateSnowflakeId();
         await trx.insert(email).values({
           id: emailId,
           value: createUserDto.email,
-          verified_at:
-            process.env.NODE_ENV === 'development' ? new Date() : null,
+          verified_at: isAutoVerified ? new Date() : null,
         });
 
         // Insert user
@@ -110,33 +115,35 @@ export class UsersService {
           is_private: false,
         });
 
-        // Generate token verifikasi
-        const verifyToken = this.jwtService.sign(
-          {
-            sub: userId.toString(),
-            email: createUserDto.email,
-            type: 'verify',
-          },
-          { expiresIn: '24h' },
-        );
-
-        await this.emailService.sendVerificationEmail(
-          createUserDto.email,
-          verifyToken,
-        );
+        let verifyToken: string | undefined = undefined;
+        if (!isAutoVerified) {
+          // Generate token verifikasi
+          verifyToken = this.jwtService.sign(
+            {
+              sub: userId.toString(),
+              email: createUserDto.email,
+              type: 'verify',
+            },
+            { expiresIn: '24h' },
+          );
+          await this.emailService.sendVerificationEmail(
+            createUserDto.email,
+            verifyToken,
+          );
+        }
 
         return right({
           user: {
             id: userId.toString(),
             email: createUserDto.email,
-            isEmailVerified: false,
+            isEmailVerified: isAutoVerified,
             fullName: '',
             bio: '',
             username: '',
             pictureUrl: '',
-            isPrivate: false,
+            isPrivate: false, // profile baru pasti false
           },
-          verificationToken: verifyToken,
+          verificationToken: verifyToken ?? '',
         });
       } catch (error) {
         this.logger.error(error);
@@ -209,6 +216,7 @@ export class UsersService {
           bio: profileData?.bio || '',
           username: profileData?.username || '',
           pictureUrl: profileData?.picture_url || '',
+          isPrivate: profileData?.is_private ?? false,
         },
         accessToken,
       });
@@ -266,6 +274,7 @@ export class UsersService {
           bio: profileRecord[0].bio ?? undefined,
           username: profileRecord[0].username ?? undefined,
           pictureUrl: profileRecord[0].picture_url ?? undefined,
+          isPrivate: profileRecord[0].is_private ?? false, 
         });
       } catch (error) {
         this.logger.error(error);
