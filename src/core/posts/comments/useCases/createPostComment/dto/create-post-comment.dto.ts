@@ -8,3 +8,5 @@ export class CreateCommentDto {
   @ApiProperty()
   text: string;
 }
+
+export class CreatePostCommentResponseDto {}

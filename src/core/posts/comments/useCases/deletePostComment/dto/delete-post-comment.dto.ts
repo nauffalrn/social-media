@@ -8,3 +8,5 @@ export class DeletePostCommentDto {
   @ApiProperty()
   commentId: string;
 }
+
+export class DeletePostCommentResponseDto {}

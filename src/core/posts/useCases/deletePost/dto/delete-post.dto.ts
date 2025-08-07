@@ -6,3 +6,5 @@ export class DeletePostDto {
   @ApiProperty()
   postId: string;
 }
+
+export class DeletePostResponseDto {}

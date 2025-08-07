@@ -10,3 +10,5 @@ export class CreateRepliedCommentDto {
   @ApiProperty()
   text: string;
 }
+
+export class CreateRepliedCommentResponseDto {}

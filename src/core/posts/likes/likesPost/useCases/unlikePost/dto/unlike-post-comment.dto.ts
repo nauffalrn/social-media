@@ -6,3 +6,5 @@ export class UnlikePostDto {
   @ApiProperty()
   postId: string;
 }
+
+export class UnlikePostResponseDto {}

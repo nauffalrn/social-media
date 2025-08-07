@@ -7,3 +7,5 @@ export class UnfollowingDto {
   @ApiProperty()
   followId: string;
 }
+
+export class UnfollowingResponseDto {}

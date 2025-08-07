@@ -6,3 +6,5 @@ export class LikePostDto {
   @ApiProperty()
   postId: string;
 }
+
+export class LikePostResponseDto {}

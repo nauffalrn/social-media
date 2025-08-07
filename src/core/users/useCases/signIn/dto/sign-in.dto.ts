@@ -6,3 +6,8 @@ export class SignInDto {
   @ApiProperty()
   password: string;
 }
+
+export class SignInResponseDto {
+  @ApiProperty()
+  accessToken: string;
+}

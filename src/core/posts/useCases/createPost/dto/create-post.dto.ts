@@ -10,3 +10,5 @@ export class CreatePostDto {
   @ApiProperty()
   tags?: string[];
 }
+
+export class CreatePostResponseDto {}

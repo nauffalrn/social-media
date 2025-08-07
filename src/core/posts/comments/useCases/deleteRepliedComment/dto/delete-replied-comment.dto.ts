@@ -10,3 +10,5 @@ export class DeleteRepliedCommentDto {
   @ApiProperty()
   replyId: string;
 }
+
+export class DeleteRepliedCommentResponseDto {}

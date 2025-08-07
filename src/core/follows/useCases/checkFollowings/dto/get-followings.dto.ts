@@ -9,3 +9,19 @@ export class GetFollowingsDto {
   @ApiProperty()
   page: number;
 }
+
+class Followings {
+  @ApiProperty()
+  username: string;
+
+  @ApiProperty()
+  fullName: string;
+
+  @ApiProperty()
+  pictureUrl: string;
+}
+
+export class GetFollowingsResponseDto {
+  @ApiProperty({ type: [Followings] })
+  followings: Array<Followings>;
+}

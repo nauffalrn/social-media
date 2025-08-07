@@ -6,3 +6,5 @@ export class LikeCommentDto {
   @ApiProperty()
   postId: string;
 }
+
+export class LikeCommentResponseDto {}
