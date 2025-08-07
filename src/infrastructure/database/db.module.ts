@@ -1,14 +1,15 @@
 import { Module } from '@nestjs/common';
-import { db, runMigrations } from './index';
+import { db } from './index';
+import { DRIZZLE } from 'src/infrastructure/database/drizzle.constants';
 
 @Module({
   providers: [
     {
-      provide: 'DB',
+      provide: DRIZZLE,
       useValue: db,
     },
   ],
-  exports: ['DB'],
+  exports: [DRIZZLE],
 })
 export class DbModule {
 }

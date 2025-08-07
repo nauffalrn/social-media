@@ -1,17 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
-import { DrizzleInstance } from 'src/infrastructure/database';
-import {
-  follow,
-  notification,
-  profile,
-} from 'src/infrastructure/database/schema';
-import {
-  extractDateFromSnowflake,
-  generateSnowflakeId,
-} from 'src/infrastructure/snowflake/snowflake';
+import { Injectable } from '@nestjs/common';
+import { generateSnowflakeId, extractDateFromSnowflake } from 'src/infrastructure/snowflake/snowflake';
 import { Either, ErrorRegister, left, right } from 'src/libs/helpers/either';
-import { Follow } from './entities/follow.entity';
+import { FollowRepository } from './repositories/follow.repository';
+import { UserRepository } from '../users/repositories/user.repository';
 import { GetFollowersResponseDto } from './useCases/checkFollowers/dto/get-followers-response.dto';
 import { GetFollowingsResponseDto } from './useCases/checkFollowings/dto/get-followings-response.dto';
 
@@ -19,91 +10,65 @@ type FollowUserResult = Either<
   | ErrorRegister.CannotFollowSelf
   | ErrorRegister.AlreadyFollowing
   | ErrorRegister.UserNotFound,
-  Follow
+  {
+    id: string;
+    followerId: string;
+    followingId: string;
+    createdAt: Date;
+  }
 >;
-type UnfollowUserResult = Either<
-  ErrorRegister.NotFollowing | ErrorRegister.UserNotFound,
-  void
->;
-type GetFollowersResult = Either<
-  ErrorRegister.UserNotFound,
-  GetFollowersResponseDto
->;
-type GetFollowingsResult = Either<
-  ErrorRegister.UserNotFound,
-  GetFollowingsResponseDto
->;
+type UnfollowUserResult = Either<ErrorRegister.NotFollowing | ErrorRegister.UserNotFound, void>;
+type GetFollowersResult = Either<ErrorRegister.UserNotFound, GetFollowersResponseDto>;
+type GetFollowingsResult = Either<ErrorRegister.UserNotFound, GetFollowingsResponseDto>;
 
 @Injectable()
 export class FollowsService {
-  constructor(@Inject('DB') private db: DrizzleInstance) {}
+  constructor(
+    private readonly followRepository: FollowRepository,
+    private readonly userRepository: UserRepository,
+  ) {}
 
   async followUser(
     followerId: bigint,
     followingId: bigint,
   ): Promise<FollowUserResult> {
-    return await this.db.transaction(async (trx) => {
-      if (followerId === followingId) {
-        return left(new ErrorRegister.CannotFollowSelf());
-      }
+    if (followerId === followingId) {
+      return left(new ErrorRegister.CannotFollowSelf());
+    }
 
-      const existingFollow = await trx
-        .select()
-        .from(follow)
-        .where(
-          and(
-            eq(follow.follower_id, followerId),
-            eq(follow.following_id, followingId),
-          ),
-        )
-        .limit(1);
+    const existingFollow = await this.followRepository.findFollow(followerId, followingId);
+    if (existingFollow.length > 0) {
+      return left(new ErrorRegister.AlreadyFollowing());
+    }
 
-      if (existingFollow.length > 0) {
-        return left(new ErrorRegister.AlreadyFollowing());
-      }
+    // Insert follow (gunakan onConflictDoNothing jika ada di repo)
+    const inserted = await this.followRepository.insertFollowReturning({
+      id: generateSnowflakeId(),
+      follower_id: followerId,
+      following_id: followingId,
+    });
 
-      const [inserted] = await trx
-        .insert(follow)
-        .values({
-          id: generateSnowflakeId(),
-          follower_id: followerId,
-          following_id: followingId,
-        })
-        .onConflictDoNothing({
-          target: [follow.follower_id, follow.following_id],
-        })
-        .returning({
-          id: follow.id,
-          follower_id: follow.follower_id,
-          following_id: follow.following_id,
-        });
+    if (!inserted) {
+      return left(new ErrorRegister.AlreadyFollowing());
+    }
 
-      if (!inserted) {
-        return left(new ErrorRegister.AlreadyFollowing());
-      }
-
-      // Notifikasi ke user yang di-follow
-      if (followingId !== followerId) {
-        const [profileData] = await trx
-          .select()
-          .from(profile)
-          .where(eq(profile.user_id, followerId))
-          .limit(1);
-        const actorUsername = profileData?.username || 'Seseorang';
-        await trx.insert(notification).values({
-          id: generateSnowflakeId(),
-          user_id: followingId,
-          description: `${actorUsername} mulai mengikuti Anda`,
-          category: 'follow',
-        });
-      }
-
-      return right({
-        id: inserted.id.toString(),
-        followerId: inserted.follower_id.toString(),
-        followingId: inserted.following_id.toString(),
-        createdAt: extractDateFromSnowflake(inserted.id),
+    // Notifikasi ke user yang di-follow
+    if (followingId !== followerId) {
+      const [profileData] = await this.userRepository.findProfileByUserId(followerId);
+      const actorUsername = profileData?.username || 'Seseorang';
+      await this.followRepository.insertNotification({
+        id: generateSnowflakeId(),
+        user_id: followingId,
+        description: `${actorUsername} mulai mengikuti Anda`,
+        category: 'follow',
       });
+    }
+
+    return right({
+      id: inserted.id.toString(),
+      followerId: inserted.follower_id.toString(),
+      followingId: inserted.following_id.toString(),
+      createdAt: extractDateFromSnowflake(inserted.id),
     });
   }
 
@@ -111,64 +76,32 @@ export class FollowsService {
     followerId: bigint,
     followingId: bigint,
   ): Promise<UnfollowUserResult> {
-    return await this.db.transaction(async (trx) => {
-      const existingFollow = await trx
-        .select()
-        .from(follow)
-        .where(
-          and(
-            eq(follow.follower_id, followerId),
-            eq(follow.following_id, followingId),
-          ),
-        )
-        .limit(1);
+    const existingFollow = await this.followRepository.findFollow(followerId, followingId);
+    if (existingFollow.length === 0) {
+      return left(new ErrorRegister.NotFollowing());
+    }
 
-      if (existingFollow.length === 0) {
-        return left(new ErrorRegister.NotFollowing());
-      }
+    await this.followRepository.deleteFollow(followerId, followingId);
 
-      // Hapus follow
-      await trx
-        .delete(follow)
-        .where(
-          and(
-            eq(follow.follower_id, followerId),
-            eq(follow.following_id, followingId),
-          ),
-        );
+    // Hapus notifikasi follow
+    const [profileData] = await this.userRepository.findProfileByUserId(followerId);
+    const actorUsername = profileData?.username || 'Seseorang';
+    await this.followRepository.deleteNotification(
+      followingId,
+      `${actorUsername} mulai mengikuti Anda`,
+    );
 
-      // Hapus notifikasi follow
-      await trx
-        .delete(notification)
-        .where(
-          and(
-            eq(notification.user_id, followingId),
-            eq(notification.category, 'follow'),
-            eq(
-              notification.description,
-              await this.getFollowNotifDescription(followerId),
-            ),
-          ),
-        );
-
-      return right(undefined);
-    });
+    return right(undefined);
   }
 
   async followUserByUsername(
     followerId: bigint,
     username: string,
   ): Promise<FollowUserResult> {
-    const profileData = await this.db
-      .select()
-      .from(profile)
-      .where(eq(profile.username, username))
-      .limit(1);
-
+    const profileData = await this.userRepository.findProfileByUsername(username);
     if (profileData.length === 0) {
       return left(new ErrorRegister.UserNotFound());
     }
-
     const followingId = profileData[0].user_id;
     return this.followUser(followerId, followingId);
   }
@@ -177,16 +110,10 @@ export class FollowsService {
     followerId: bigint,
     username: string,
   ): Promise<UnfollowUserResult> {
-    const profileData = await this.db
-      .select()
-      .from(profile)
-      .where(eq(profile.username, username))
-      .limit(1);
-
+    const profileData = await this.userRepository.findProfileByUsername(username);
     if (profileData.length === 0) {
       return left(new ErrorRegister.UserNotFound());
     }
-
     const followingId = profileData[0].user_id;
     return this.unfollowUser(followerId, followingId);
   }
@@ -196,30 +123,15 @@ export class FollowsService {
     take = 30,
     page = 1,
   ): Promise<GetFollowersResult> {
-    const profileData = await this.db
-      .select()
-      .from(profile)
-      .where(eq(profile.username, username))
-      .limit(1);
-
+    const profileData = await this.userRepository.findProfileByUsername(username);
     if (profileData.length === 0) {
       return left(new ErrorRegister.UserNotFound());
     }
-
     const userId = profileData[0].user_id;
     const offset = (page - 1) * take;
 
-    const followerRecords = await this.db
-      .select({
-        fullName: profile.full_name,
-        username: profile.username,
-        pictureUrl: profile.picture_url,
-      })
-      .from(follow)
-      .innerJoin(profile, eq(follow.follower_id, profile.user_id))
-      .where(eq(follow.following_id, userId))
-      .limit(take)
-      .offset(offset);
+    // Ambil followers dengan join ke profile
+    const followerRecords = await this.followRepository.getFollowersWithProfile(userId, take, offset);
 
     const followers = followerRecords.map((record) => ({
       fullName: record.fullName || '',
@@ -236,30 +148,15 @@ export class FollowsService {
     take = 30,
     page = 1,
   ): Promise<GetFollowingsResult> {
-    const profileData = await this.db
-      .select()
-      .from(profile)
-      .where(eq(profile.username, username))
-      .limit(1);
-
+    const profileData = await this.userRepository.findProfileByUsername(username);
     if (profileData.length === 0) {
       return left(new ErrorRegister.UserNotFound());
     }
-
     const userId = profileData[0].user_id;
     const offset = (page - 1) * take;
 
-    const followingRecords = await this.db
-      .select({
-        fullName: profile.full_name,
-        username: profile.username,
-        pictureUrl: profile.picture_url,
-      })
-      .from(follow)
-      .innerJoin(profile, eq(follow.following_id, profile.user_id))
-      .where(eq(follow.follower_id, userId))
-      .limit(take)
-      .offset(offset);
+    // Ambil followings dengan join ke profile
+    const followingRecords = await this.followRepository.getFollowingsWithProfile(userId, take, offset);
 
     const followings = followingRecords.map((record) => ({
       fullName: record.fullName || '',
@@ -269,16 +166,5 @@ export class FollowsService {
 
     const response: GetFollowingsResponseDto = { followings };
     return right(response);
-  }
-
-  // Tambahkan helper untuk deskripsi notifikasi follow
-  private async getFollowNotifDescription(followerId: bigint): Promise<string> {
-    const [profileData] = await this.db
-      .select()
-      .from(profile)
-      .where(eq(profile.user_id, followerId))
-      .limit(1);
-    const actorUsername = profileData?.username || 'Seseorang';
-    return `${actorUsername} mulai mengikuti Anda`;
   }
 }

@@ -6,11 +6,13 @@ import { UploadsModule } from 'src/infrastructure/storage/uploads.module';
 import { EmailService } from '../../infrastructure/email/email.service';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
+import { UserRepository } from './repositories/user.repository';
+import { FollowRepository } from '../follows/repositories/follow.repository';
 
 @Module({
   imports: [ConfigModule, HttpModule, UploadsModule, DbModule],
   controllers: [UsersController],
-  providers: [UsersService, EmailService],
-  exports: [UsersService, EmailService],
+  providers: [UsersService, EmailService, UserRepository, FollowRepository],
+  exports: [UsersService, EmailService, UserRepository, FollowRepository],
 })
 export class UsersModule {}

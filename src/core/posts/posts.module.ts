@@ -7,6 +7,7 @@ import { CommentsModule } from './comments/comments.module';
 import { LikesModule } from './likes/likes.module';
 import { PostsController } from './posts.controller';
 import { PostsService } from './posts.service';
+import { PostRepository } from './repositories/post.repository';
 
 @Module({
   imports: [
@@ -18,7 +19,7 @@ import { PostsService } from './posts.service';
     DbModule,
   ],
   controllers: [PostsController],
-  providers: [PostsService],
-  exports: [PostsService],
+  providers: [PostsService, PostRepository],
+  exports: [PostsService, PostRepository],
 })
 export class PostsModule {}
