@@ -78,6 +78,9 @@ export const post = pgTable(
     user_id: bigint('user_id', { mode: 'bigint' }).notNull(),
     picture_url: text('picture_url').notNull(),
     caption: text('caption').notNull(),
+    created_at: timestamp('created_at', { withTimezone: false })
+      .defaultNow()
+      .notNull(),
     deleted_at: timestamp('deleted_at', { withTimezone: false }),
   },
   (table) => [
@@ -157,6 +160,7 @@ export const comment = pgTable(
     user_id: bigint('user_id', { mode: 'bigint' }).notNull(),
     text: text('text').notNull(),
     parent_id: bigint('parent_id', { mode: 'bigint' }),
+    deleted_at: timestamp('deleted_at', { withTimezone: false }),
   },
   (table) => [
     index('idx_comment_post_id').on(table.post_id),

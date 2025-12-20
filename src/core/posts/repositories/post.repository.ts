@@ -1,39 +1,47 @@
-import { Injectable } from '@nestjs/common';
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
-import { post, post_tag, profile, comment, post_like } from 'src/infrastructure/database/schema';
+import { Inject, Injectable } from '@nestjs/common';
 import { db } from 'src/infrastructure/database';
-import { TransactionHost } from '@nestjs-cls/transactional';
-import { TransactionalAdapterDrizzleOrm } from '@nestjs-cls/transactional-adapter-drizzle-orm';
+import {
+  post,
+  profile,
+  post_like,
+  comment,
+  post_tag,
+} from 'src/infrastructure/database/schema';
+import { eq, and, or, ilike, isNull, desc, sql } from 'drizzle-orm';
 
 type DrizzleClient = typeof db;
-type MyDrizzleAdapter = TransactionalAdapterDrizzleOrm<DrizzleClient>;
 
 @Injectable()
 export class PostRepository {
-  constructor(private readonly txHost: TransactionHost<MyDrizzleAdapter>) {}
+  constructor(
+    @Inject('DATABASE_CONNECTION') private readonly db: DrizzleClient,
+  ) {}
 
   async insertPost(postData: any) {
-    return this.txHost.tx.insert(post).values(postData);
+    return this.db.insert(post).values(postData);
   }
 
   async updatePost(postId: bigint, update: any) {
-    return this.txHost.tx.update(post).set(update).where(eq(post.id, postId));
+    return this.db.update(post).set(update).where(eq(post.id, postId));
   }
 
   async findPostById(postId: bigint) {
-    return this.txHost.tx.select().from(post).where(eq(post.id, postId)).limit(1);
+    return this.db.select().from(post).where(eq(post.id, postId)).limit(1);
   }
 
   async deletePost(postId: bigint) {
-    return this.txHost.tx.update(post).set({ deleted_at: new Date() }).where(eq(post.id, postId));
+    return this.db
+      .update(post)
+      .set({ deleted_at: new Date() })
+      .where(eq(post.id, postId));
   }
 
   async insertTags(tags: any[]) {
-    return Promise.all(tags.map(tag => this.txHost.tx.insert(post_tag).values(tag)));
+    return this.db.insert(post_tag).values(tags);
   }
 
   async findPostsByUserId(userId: bigint, take: number, offset: number) {
-    return this.txHost.tx
+    return this.db
       .select()
       .from(post)
       .where(and(eq(post.user_id, userId), isNull(post.deleted_at)))
@@ -42,38 +50,41 @@ export class PostRepository {
       .offset(offset);
   }
 
-  async findTaggedPostsByUserId(userId: bigint, take: number, offset: number) {
-    return this.txHost.tx
-      .select()
-      .from(post_tag)
-      .where(eq(post_tag.user_id, userId))
-      .orderBy(desc(post_tag.post_id))
+  async searchPosts(query: string, take: number, offset: number) {
+    return this.db
+      .select({
+        id: post.id,
+        caption: post.caption,
+        picture_url: post.picture_url,
+        created_at: post.created_at,
+        username: profile.username,
+        user_picture_url: profile.picture_url,
+        likes_count: sql<number>`COALESCE(COUNT(DISTINCT ${post_like.id}), 0)`,
+        comments_count: sql<number>`COALESCE(COUNT(DISTINCT ${comment.id}), 0)`,
+      })
+      .from(post)
+      .leftJoin(profile, eq(post.user_id, profile.user_id))
+      .leftJoin(post_like, eq(post.id, post_like.post_id))
+      .leftJoin(comment, eq(post.id, comment.post_id))
+      .where(
+        and(
+          or(
+            ilike(post.caption, `%${query}%`),
+            ilike(profile.username, `%${query}%`),
+          ),
+          isNull(post.deleted_at),
+        ),
+      )
+      .groupBy(
+        post.id,
+        post.caption,
+        post.picture_url,
+        post.created_at,
+        profile.username,
+        profile.picture_url,
+      )
+      .orderBy(desc(post.created_at))
       .limit(take)
       .offset(offset);
-  }
-
-  async getProfileByUserId(userId: bigint) {
-    return this.txHost.tx.select().from(profile).where(eq(profile.user_id, userId)).limit(1);
-  }
-
-  async countLikes(postId: bigint) {
-    return this.txHost.tx
-      .select({ count: sql`count(*)` })
-      .from(post_like)
-      .where(eq(post_like.post_id, postId));
-  }
-
-  async countComments(postId: bigint) {
-    return this.txHost.tx
-      .select({ count: sql`count(*)` })
-      .from(comment)
-      .where(and(eq(comment.post_id, postId), isNull(comment.parent_id)));
-  }
-
-  async getTagsByPostId(postId: bigint) {
-    return this.txHost.tx
-      .select({ user_id: post_tag.user_id })
-      .from(post_tag)
-      .where(eq(post_tag.post_id, postId));
   }
 }

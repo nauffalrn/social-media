@@ -1,15 +1,22 @@
 import { Module } from '@nestjs/common';
+import { ClsModule } from 'nestjs-cls';
 import { db } from './index';
-import { DRIZZLE } from 'src/infrastructure/database/drizzle.constants';
 
 @Module({
+  imports: [
+    ClsModule.forRoot({
+      global: true,
+      middleware: {
+        mount: true,
+      },
+    }),
+  ],
   providers: [
     {
-      provide: DRIZZLE,
+      provide: 'DATABASE_CONNECTION',
       useValue: db,
     },
   ],
-  exports: [DRIZZLE],
+  exports: [ClsModule, 'DATABASE_CONNECTION'],
 })
-export class DbModule {
-}
+export class DbModule {}

@@ -1,18 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { Either, left, right } from 'src/libs/helpers/either';
-import { NotificationsRepository } from './repositories/notification.repository';
-import { GetNotificationsResponseDto } from './useCases/getNotifications/dto/get-notifications-response.dto';
+import { NotificationRepository } from '../repositories/notification.repository';
+import { GetNotificationsResponseDto } from './getNotifications/dto/get-notifications.dto';
 
 // Definisi tipe result
 type GetUserNotificationsResult = Either<Error, GetNotificationsResponseDto>;
 
 @Injectable()
-export class NotificationsService {
+export class NotificationsUseCase {
   constructor(
-    private readonly notificationsRepository: NotificationsRepository,
+    private readonly notificationsRepository: NotificationRepository,
   ) {}
 
-  async getUserNotifications(
+  async execute(
     userId: bigint,
     take = 30,
     page = 1,

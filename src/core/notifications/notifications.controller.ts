@@ -9,14 +9,14 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from 'src/libs/guards/authGuard';
-import { LoggedInUser } from 'src/libs/helpers/logged-in-user';
-import { NotificationsService } from './notifications.service';
-import { GetNotificationsResponseDto } from './useCases/getNotifications/dto/get-notifications-response.dto';
+import { RequestWithUser } from 'src/libs/helpers/logged-in-user';
+import { GetNotificationsResponseDto } from './useCases/getNotifications/dto/get-notifications.dto';
+import { NotificationsUseCase } from './useCases/getNotification.usecase';
 
 @ApiTags('Notifications')
 @Controller('users')
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(private readonly NotificationUseCase: NotificationsUseCase) {}
 
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
@@ -29,7 +29,7 @@ export class NotificationsController {
   })
   @Get(':username/notifications')
   async getNotifications(
-    @Request() req: LoggedInUser,
+    @Request() req: RequestWithUser,
     @Param('username') username: string,
     @Query('take') take?: string,
     @Query('page') page?: string,
@@ -60,7 +60,7 @@ export class NotificationsController {
 
     const userId = BigInt(req.user.sub);
 
-    const result = await this.notificationsService.getUserNotifications(
+    const result = await this.NotificationUseCase.execute(
       userId,
       parsedTake,
       parsedPage,

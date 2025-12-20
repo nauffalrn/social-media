@@ -17,19 +17,29 @@ import { JwtService } from '@nestjs/jwt';
 import { ApiBody, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { SignUpVerificationDto } from 'src/infrastructure/email/verificationEmail/dto/sign-up-verification.dto';
 import { AuthGuard } from 'src/libs/guards/authGuard';
+import { UserRepository } from './repositories/user.repository';
 import { createUserSchema } from './schemas/user.schema';
-import { GetProfileResponseDto } from './useCases/checkProfile/dto/get-profile-response.dto';
-import { SignInResponseDto } from './useCases/signIn/dto/sign-in-response.dto';
-import { SignInDto } from './useCases/signIn/dto/sign-in.dto';
+import { GetProfileResponseDto } from './useCases/checkProfile/dto/get-profile.dto';
+import { GetProfileUseCase } from './useCases/checkProfile/get-profile.usecase';
+import {
+  SignInDto,
+  SignInResponseDto,
+} from './useCases/signIn/dto/sign-in.dto';
+import { SignInUseCase } from './useCases/signIn/sign-in.usecase';
 import { SignUpDto } from './useCases/signUp/dto/sign-up.dto';
-import { UpdateProfileDto } from './useCases/updateProfile/update-profile.dto';
-import { UsersService } from './users.service';
+import { SignUpUseCase } from './useCases/signUp/sign-up.usecase';
+import { UpdateProfileDto } from './useCases/updateProfile/dto/update-profile.dto';
+import { UpdateProfileUseCase } from './useCases/updateProfile/update-profile.usecase';
 
 @Controller()
 export class UsersController {
   constructor(
-    private readonly usersService: UsersService,
+    private readonly signUpUseCase: SignUpUseCase,
+    private readonly signInUseCase: SignInUseCase,
+    private readonly getProfileUseCase: GetProfileUseCase,
+    private readonly updateProfileUseCase: UpdateProfileUseCase,
     private readonly jwtService: JwtService,
+    private readonly userRepository: UserRepository,
   ) {}
 
   @HttpCode(204)
@@ -46,13 +56,14 @@ export class UsersController {
         parseResult.error.issues.map((e) => e.message).join(', '),
       );
     }
-    const result = await this.usersService.create(createUserDto);
+    const result = await this.signUpUseCase.execute(createUserDto);
     if (result.isLeft()) {
       throw new BadRequestException(result.error.message);
     }
     return {
       message: 'Pendaftaran berhasil, silakan cek email untuk verifikasi',
-      user: result.value,
+      user: result.value.user,
+      verificationToken: result.value.verificationToken,
     };
   }
 
@@ -72,7 +83,10 @@ export class UsersController {
       ) {
         throw new BadRequestException('Token tidak valid');
       }
-      await this.usersService.markEmailVerified(BigInt(payload.sub));
+      await this.userRepository.updateEmailVerified(
+        BigInt(payload.sub),
+        new Date(),
+      );
       return { message: 'Email berhasil diverifikasi' };
     } catch (err) {
       throw new BadRequestException(
@@ -89,7 +103,7 @@ export class UsersController {
     type: SignInResponseDto,
   })
   async login(@Body() loginDto: SignInDto) {
-    const result = await this.usersService.login(loginDto);
+    const result = await this.signInUseCase.execute(loginDto);
     if (result.isLeft()) {
       const error = result.error;
       switch (error.name) {
@@ -102,7 +116,8 @@ export class UsersController {
         case 'InvalidPassword':
           throw new BadRequestException('Kata sandi salah');
         default:
-          throw new InternalServerErrorException('Terjadi kesalahan, silahkan hubungi pihak kami.',
+          throw new InternalServerErrorException(
+            'Terjadi kesalahan, silahkan hubungi pihak kami.',
           );
       }
     }
@@ -120,7 +135,7 @@ export class UsersController {
     type: GetProfileResponseDto,
   })
   async getUserByUsername(@Param('username') username: string) {
-    const result = await this.usersService.findByUsername(username);
+    const result = await this.getProfileUseCase.execute(username);
     if (result.isLeft()) {
       throw new NotFoundException(result.error.message);
     }
@@ -142,7 +157,10 @@ export class UsersController {
       if (payload.type !== 'verify') {
         throw new BadRequestException('Token tidak valid');
       }
-      await this.usersService.markEmailVerified(BigInt(payload.sub));
+      await this.userRepository.updateEmailVerified(
+        BigInt(payload.sub),
+        new Date(),
+      );
       return { message: 'Email berhasil diverifikasi' };
     } catch (err) {
       throw new BadRequestException(
@@ -164,7 +182,7 @@ export class UsersController {
     @Body() updateProfileDto: UpdateProfileDto,
   ) {
     const userId = BigInt(req.user.sub);
-    const result = await this.usersService.updateProfile(
+    const result = await this.updateProfileUseCase.execute(
       userId,
       updateProfileDto,
     );

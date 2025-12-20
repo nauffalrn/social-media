@@ -12,13 +12,20 @@ import {
 } from '@nestjs/common';
 import { ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { AuthGuard } from 'src/libs/guards/authGuard';
-import { FollowsService } from './follows.service';
-import { GetFollowersResponseDto } from './useCases/checkFollowers/dto/get-followers-response.dto';
-import { GetFollowingsResponseDto } from './useCases/checkFollowings/dto/get-followings-response.dto';
+import { GetFollowersResponseDto } from './useCases/checkFollowers/dto/get-followers.dto';
+import { GetFollowingsResponseDto } from './useCases/checkFollowings/dto/get-followings.dto';
+import { GetFollowingsUseCase } from './useCases/checkFollowings/get-followings.usecase';
+import { FollowUserUseCase } from './useCases/followUser/following.usecase';
+import { GetFollowersUseCase } from './useCases/checkFollowers/get-followers.usecase';
 
 @Controller('users')
 export class FollowsController {
-  constructor(private readonly followsService: FollowsService) {}
+  constructor(
+    private readonly getFollowingsUseCase: GetFollowingsUseCase,
+    private readonly followingUserUseCase: FollowUserUseCase,
+    private readonly unfollowUserUseCase: FollowUserUseCase,
+    private readonly getFollowersUseCase: GetFollowersUseCase,
+  ) {}
 
   @HttpCode(204)
   @UseGuards(AuthGuard)
@@ -28,11 +35,14 @@ export class FollowsController {
   })
   @Post(':username/follows')
   async followUser(@Request() req, @Param('username') username: string) {
-    const result = await this.followsService.followUserByUsername(
+    const result = await this.followingUserUseCase.execute(
       BigInt(req.user.sub),
       username,
     );
-    if (result.isLeft()) throw new BadRequestException(result.error.message);
+    if (result.isLeft())
+      throw new BadRequestException(
+        (result.error as { message: string }).message,
+      );
     return {
       message: 'Berhasil mengikuti pengguna',
       follow: result.value,
@@ -47,11 +57,11 @@ export class FollowsController {
   })
   @Delete(':username/follows')
   async unfollowUser(@Request() req, @Param('username') username: string) {
-    const result = await this.followsService.unfollowUserByUsername(
+    const result = await this.unfollowUserUseCase.execute(
       BigInt(req.user.sub),
       username,
     );
-    if (result.isLeft()) throw new BadRequestException(result.error.message);
+    if (result.isLeft()) throw new BadRequestException((result.error as { message: string }).message);
     return { message: 'Berhasil berhenti mengikuti pengguna' };
   }
 
@@ -81,12 +91,12 @@ export class FollowsController {
       throw new BadRequestException(
         'Parameter take dan page harus berupa angka positif',
       );
-    const result = await this.followsService.getFollowersByUsername(
+    const result = await this.getFollowersUseCase.execute({
       username,
-      parsedTake,
-      parsedPage,
-    );
-    if (result.isLeft()) throw new BadRequestException(result.error.message);
+      take: parsedTake,
+      page: parsedPage,
+    });
+    if (result.isLeft()) throw new BadRequestException((result.error as { message: string }).message);
 
     return {
       followers: result.value.followers.map((f) => ({
@@ -129,13 +139,13 @@ export class FollowsController {
     }
 
     // Teruskan parameter ke service
-    const result = await this.followsService.getFollowingsByUsername(
+    const result = await this.getFollowingsUseCase.execute({
       username,
-      parsedTake,
-      parsedPage,
-    );
+      take: parsedTake,
+      page: parsedPage,
+    });
 
     if (result.isLeft()) throw new BadRequestException(result.error.message);
-    return { followings: result.value };
+    return { followings: result.value.followings };
   }
 }

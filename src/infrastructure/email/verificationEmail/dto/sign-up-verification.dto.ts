@@ -6,3 +6,5 @@ export class SignUpVerificationDto {
   @ApiProperty()
   verificationToken: string;
 }
+
+export class SignUpVerificationResponseDto {}

@@ -1,18 +1,31 @@
 import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
 import { DbModule } from 'src/infrastructure/database/db.module';
-import { UploadsModule } from 'src/infrastructure/storage/uploads.module';
+import { UploadsModule } from 'src/infrastructure/storage/uploads.module'; // TAMBAHKAN INI
 import { EmailService } from '../../infrastructure/email/email.service';
+import { FollowRepository } from '../follows/repositories/follow.repository';
+import { UserRepository } from './repositories/user.repository';
+import { GetProfileUseCase } from './useCases/checkProfile/get-profile.usecase';
+import { SignInUseCase } from './useCases/signIn/sign-in.usecase';
+import { SignUpUseCase } from './useCases/signUp/sign-up.usecase';
+import { UpdateProfileUseCase } from './useCases/updateProfile/update-profile.usecase';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
-import { UserRepository } from './repositories/user.repository';
-import { FollowRepository } from '../follows/repositories/follow.repository';
 
 @Module({
-  imports: [ConfigModule, HttpModule, UploadsModule, DbModule],
+  imports: [DbModule, HttpModule, JwtModule, UploadsModule],
   controllers: [UsersController],
-  providers: [UsersService, EmailService, UserRepository, FollowRepository],
-  exports: [UsersService, EmailService, UserRepository, FollowRepository],
+  providers: [
+    UsersService,
+    UserRepository,
+    FollowRepository,
+    EmailService,
+    SignUpUseCase,
+    SignInUseCase,
+    GetProfileUseCase,
+    UpdateProfileUseCase,
+  ],
+  exports: [UsersService, UserRepository],
 })
 export class UsersModule {}

@@ -42,10 +42,9 @@ async function bootstrap() {
 
   // app.enableCors();
   const config = new DocumentBuilder()
-    .setTitle('API Social Media')
-    .setDescription('The API description for Social Media')
+    .setTitle('Social Media API')
+    .setDescription('API untuk aplikasi social media yang menyediakan fitur posting, komentar, likes, follow/unfollow, dan notifikasi')
     .setVersion('1.0')
-    .addTag('social')
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, documentFactory, {

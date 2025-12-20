@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiResponse } from '@nestjs/swagger';
 import { AuthGuard } from 'src/libs/guards/authGuard';
-import { LoggedInUser } from 'src/libs/helpers/logged-in-user';
+import { RequestWithUser } from 'src/libs/helpers/logged-in-user';
 import { LikesService } from './likes.service';
 
 @Controller('users')
@@ -25,7 +25,7 @@ export class LikesController {
   })
   @Post(':username/posts/:postId/likes')
   async likePost(
-    @Request() req: LoggedInUser,
+    @Request() req: RequestWithUser,
     @Param('username') username: string,
     @Param('postId') postId: string,
   ) {
@@ -49,7 +49,7 @@ export class LikesController {
   })
   @Delete(':username/posts/:postId/likes')
   async unlikePost(
-    @Request() req: LoggedInUser,
+    @Request() req: RequestWithUser,
     @Param('username') username: string,
     @Param('postId') postId: string,
   ) {

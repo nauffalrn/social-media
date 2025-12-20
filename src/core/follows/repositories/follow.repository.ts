@@ -1,23 +1,73 @@
-import { TransactionHost } from '@nestjs-cls/transactional';
-import { TransactionalAdapterDrizzleOrm } from '@nestjs-cls/transactional-adapter-drizzle-orm';
-import { Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { Injectable, Inject } from '@nestjs/common';
 import { db } from 'src/infrastructure/database';
 import {
   follow,
-  notification,
   profile,
+  notification,
 } from 'src/infrastructure/database/schema';
+import { eq, and } from 'drizzle-orm';
 
 type DrizzleClient = typeof db;
-type MyDrizzleAdapter = TransactionalAdapterDrizzleOrm<DrizzleClient>;
 
 @Injectable()
 export class FollowRepository {
-  constructor(private readonly txHost: TransactionHost<MyDrizzleAdapter>) {}
+  constructor(
+    @Inject('DATABASE_CONNECTION') private readonly db: DrizzleClient,
+  ) {}
+
+  async getFollowersWithProfile(userId: bigint, take: number, offset: number) {
+    return this.db
+      .select({
+        id: follow.id,
+        followerId: follow.follower_id,
+        fullName: profile.full_name,
+        username: profile.username,
+        pictureUrl: profile.picture_url,
+      })
+      .from(follow)
+      .innerJoin(profile, eq(follow.follower_id, profile.user_id))
+      .where(eq(follow.following_id, userId))
+      .limit(take)
+      .offset(offset);
+  }
+
+  async getFollowingsWithProfile(userId: bigint, take: number, offset: number) {
+    return this.db
+      .select({
+        id: follow.id,
+        followingId: follow.following_id,
+        fullName: profile.full_name,
+        username: profile.username,
+        pictureUrl: profile.picture_url,
+      })
+      .from(follow)
+      .innerJoin(profile, eq(follow.following_id, profile.user_id))
+      .where(eq(follow.follower_id, userId))
+      .limit(take)
+      .offset(offset);
+  }
+
+  async insertFollowReturning(data: any) {
+    return this.db.insert(follow).values(data).returning();
+  }
+
+  async insertNotification(data: any) {
+    return this.db.insert(notification).values(data);
+  }
+
+  async deleteNotification(userId: bigint, description: string) {
+    return this.db
+      .delete(notification)
+      .where(
+        and(
+          eq(notification.user_id, userId),
+          eq(notification.description, description),
+        ),
+      );
+  }
 
   async findFollow(followerId: bigint, followingId: bigint) {
-    return this.txHost.tx
+    return this.db
       .select()
       .from(follow)
       .where(
@@ -30,11 +80,11 @@ export class FollowRepository {
   }
 
   async insertFollow(followData: any) {
-    return this.txHost.tx.insert(follow).values(followData);
+    return this.db.insert(follow).values(followData);
   }
 
   async deleteFollow(followerId: bigint, followingId: bigint) {
-    return this.txHost.tx
+    return this.db
       .delete(follow)
       .where(
         and(
@@ -44,65 +94,19 @@ export class FollowRepository {
       );
   }
 
-  async insertNotification(notificationData: any) {
-    return this.txHost.tx.insert(notification).values(notificationData);
-  }
-
-  async deleteNotification(userId: bigint, description: string) {
-    return this.txHost.tx
-      .delete(notification)
-      .where(
-        and(
-          eq(notification.user_id, userId),
-          eq(notification.category, 'follow'),
-          eq(notification.description, description),
-        ),
-      );
-  }
-
-  async getProfileByUserId(userId: bigint) {
-    return this.txHost.tx
+  async getFollowers(userId: bigint, take: number, offset: number) {
+    return this.db
       .select()
-      .from(profile)
-      .where(eq(profile.user_id, userId))
-      .limit(1);
-  }
-
-  async insertFollowReturning(followData: any) {
-    return (
-      await this.txHost.tx
-        .insert(follow)
-        .values(followData)
-        .onConflictDoNothing()
-        .returning()
-    )[0];
-  }
-
-  // Untuk join followers
-  async getFollowersWithProfile(userId: bigint, take: number, offset: number) {
-    return this.txHost.tx
-      .select({
-        fullName: profile.full_name,
-        username: profile.username,
-        pictureUrl: profile.picture_url,
-      })
       .from(follow)
-      .innerJoin(profile, eq(follow.follower_id, profile.user_id))
       .where(eq(follow.following_id, userId))
       .limit(take)
       .offset(offset);
   }
 
-  // Untuk join followings
-  async getFollowingsWithProfile(userId: bigint, take: number, offset: number) {
-    return this.txHost.tx
-      .select({
-        fullName: profile.full_name,
-        username: profile.username,
-        pictureUrl: profile.picture_url,
-      })
+  async getFollowing(userId: bigint, take: number, offset: number) {
+    return this.db
+      .select()
       .from(follow)
-      .innerJoin(profile, eq(follow.following_id, profile.user_id))
       .where(eq(follow.follower_id, userId))
       .limit(take)
       .offset(offset);

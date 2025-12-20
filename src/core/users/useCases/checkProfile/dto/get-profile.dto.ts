@@ -22,6 +22,7 @@ class RecentPost {
 }
 
 export class GetProfileResponseDto {
+  userId: string; // PASTIKAN ADA INI
   @ApiProperty()
   username: string;
   @ApiProperty()
@@ -31,7 +32,16 @@ export class GetProfileResponseDto {
   @ApiProperty()
   pictureUrl: string;
   @ApiProperty()
-  summaries: Summaries;
+  isPrivate: boolean;
+  @ApiProperty()
+  postsCount: number;
+  @ApiProperty()
+  followersCount: number;
+  @ApiProperty()
+  followingCount: number;
   @ApiProperty({ type: [RecentPost] })
-  recentPosts: Array<RecentPost>;
+  recentPosts: Array<{
+    id: string;
+    pictureUrl: string;
+  }>;
 }

@@ -13,19 +13,28 @@ import {
 } from '@nestjs/common';
 import { ApiBody, ApiQuery, ApiResponse, PickType } from '@nestjs/swagger';
 import { AuthGuard } from 'src/libs/guards/authGuard';
-import { LoggedInUser } from 'src/libs/helpers/logged-in-user';
-import { CommentsService } from './comments.service';
+import { RequestWithUser } from 'src/libs/helpers/logged-in-user';
 import { CreateCommentDto } from './useCases/createPostComment/dto/create-post-comment.dto';
 import { CreateRepliedCommentDto } from './useCases/createRepliedComment/dto/create-replied-comment.dto';
-import { GetPostCommentsResponseDto } from './useCases/getPostComments/dto/get-post-comments-response.dto';
-import { GetRepliedCommentsResponseDto } from './useCases/getRepliedComments/dto/get-replied-comments-response.dto';
+import { GetPostCommentsResponseDto } from './useCases/getPostComments/dto/get-post-comments.dto';
+import { GetRepliedCommentsResponseDto } from './useCases/getRepliedComments/dto/get-replied-comments.dto';
+import { CreatePostCommentUseCase } from './useCases/createPostComment/createPostComment.usecase';
+import { GetPostCommentsUseCase } from './useCases/getPostComments/getPostComments.usecase';
+import { DeletePostCommentUseCase } from './useCases/deletePostComment/deletePostComment.usecase';
+import { CreateRepliedCommentUseCase } from './useCases/createRepliedComment/createRepliedComment.usecase';
+import { GetRepliedCommentsUseCase } from './useCases/getRepliedComments/getRepliedComments.usecase';
 
 export class CreateCommentDtoBody extends PickType(CreateCommentDto, ['text']) {}
 export class CreateRepliedCommentDtoBody extends PickType(CreateRepliedCommentDto, ['text']) {}
 
 @Controller('users')
 export class CommentsController {
-  constructor(private readonly commentsService: CommentsService) {}
+  constructor(private readonly getPostCommentsUseCase: GetPostCommentsUseCase,
+              private readonly createPostCommentUseCase: CreatePostCommentUseCase,
+              private readonly deletePostCommentUseCase: DeletePostCommentUseCase,
+              private readonly createRepliedCommentUseCase: CreateRepliedCommentUseCase,
+              private readonly deleteRepliedCommentUseCase: DeletePostCommentUseCase,
+              private readonly getRepliedCommentsUseCase: GetRepliedCommentsUseCase) {}
 
   @UseGuards(AuthGuard)
   @ApiQuery({ name: 'take', required: true, example: 10 })
@@ -60,8 +69,8 @@ export class CommentsController {
       );
     }
 
-    const result = await this.commentsService.getPostComments(
-      BigInt(postId),
+      const result = await this.getPostCommentsUseCase.execute(
+        BigInt(postId),
       parsedTake,
       parsedPage,
     );
@@ -84,13 +93,13 @@ export class CommentsController {
   })
   @Post(':username/posts/:postId/comments')
   async createComment(
-    @Request() req: LoggedInUser,
+    @Request() req: RequestWithUser,
     @Param('username') username: string,
     @Param('postId') postId: string,
     @Body() createCommentDto: CreateCommentDtoBody,
   ): Promise<any> {
     const userId = BigInt(req.user.sub);
-    const result = await this.commentsService.createComment(
+    const result = await this.createPostCommentUseCase.execute(
       userId,
       BigInt(postId),
       createCommentDto.text,
@@ -114,13 +123,13 @@ export class CommentsController {
   })
   @Delete(':username/posts/:postId/comments/:commentId')
   async deleteComment(
-    @Request() req: LoggedInUser,
+    @Request() req: RequestWithUser,
     @Param('username') username: string,
     @Param('postId') postId: string,
     @Param('commentId') commentId: string,
   ): Promise<any> {
     const userId = BigInt(req.user.sub);
-    const result = await this.commentsService.deleteComment(
+    const result = await this.deletePostCommentUseCase.execute(
       userId,
       BigInt(commentId),
     );
@@ -168,7 +177,7 @@ export class CommentsController {
       );
     }
 
-    const result = await this.commentsService.getReplies(
+    const result = await this.getRepliedCommentsUseCase.execute(
       BigInt(commentId),
       parsedTake,
       parsedPage,
@@ -192,14 +201,14 @@ export class CommentsController {
   })
   @Post(':username/posts/:postId/comments/:commentId/replies')
   async createReply(
-    @Request() req: LoggedInUser,
+    @Request() req: RequestWithUser,
     @Param('username') username: string,
     @Param('postId') postId: string,
     @Param('commentId') commentId: string,
     @Body() createReplyDto: CreateRepliedCommentDtoBody,
   ): Promise<any> {
     const userId = BigInt(req.user.sub);
-    const result = await this.commentsService.createReply(
+    const result = await this.createRepliedCommentUseCase.execute(
       userId,
       BigInt(postId),
       BigInt(commentId),
@@ -224,14 +233,14 @@ export class CommentsController {
   })
   @Delete(':username/posts/:postId/comments/:commentId/replies/:replyId')
   async deleteReply(
-    @Request() req: LoggedInUser,
+    @Request() req: RequestWithUser,
     @Param('username') username: string,
     @Param('postId') postId: string,
     @Param('commentId') commentId: string,
     @Param('replyId') replyId: string,
   ): Promise<any> {
     const userId = BigInt(req.user.sub);
-    const result = await this.commentsService.deleteReply(
+    const result = await this.deleteRepliedCommentUseCase.execute(
       userId,
       BigInt(replyId),
     );

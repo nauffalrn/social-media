@@ -1,12 +1,8 @@
-import {
-  TransactionalAdapterDrizzleOrm
-} from '@nestjs-cls/transactional-adapter-drizzle-orm';
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import * as fs from 'fs';
-import { ClsModule} from 'nestjs-cls';
-import { ClsPluginTransactional } from '@nestjs-cls/transactional';
+import { ClsModule } from 'nestjs-cls';
 import { join } from 'path';
 import z from 'zod';
 import { FollowsModule } from './core/follows/follows.module';
@@ -18,7 +14,6 @@ import { UsersModule } from './core/users/users.module';
 import { DbModule } from './infrastructure/database/db.module';
 import { EnvModule } from './infrastructure/env/envModule';
 import { UploadsModule } from './infrastructure/storage/uploads.module';
-import { DRIZZLE } from './infrastructure/database/drizzle.constants';
 
 export const appSchema = z.object({
   DATABASE_URL: z.string({ error: 'DATABASE_URL is required' }),
@@ -34,6 +29,7 @@ export const appSchema = z.object({
 
 @Module({
   imports: [
+    DbModule,
     EnvModule.forRoot({
       global: true,
       schema: appSchema,
@@ -41,13 +37,13 @@ export const appSchema = z.object({
     }),
     UsersModule,
     PostsModule,
+    LikesModule,
     FollowsModule,
     CommentsModule,
     UploadsModule,
     NotificationsModule,
     EnvModule,
     LikesModule,
-    DbModule,
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'public'),
       serveRoot: '/public',
@@ -66,14 +62,9 @@ export const appSchema = z.object({
     }),
     ClsModule.forRoot({
       global: true,
-      plugins: [
-        new ClsPluginTransactional({
-          imports: [DbModule],
-          adapter: new TransactionalAdapterDrizzleOrm({
-            drizzleInstanceToken: DRIZZLE,
-          }),
-        }),
-      ],
+      middleware: {
+        mount: true,
+      },
     }),
   ],
   controllers: [],
