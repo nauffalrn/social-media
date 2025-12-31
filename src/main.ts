@@ -48,7 +48,7 @@ async function bootstrap() {
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, documentFactory, {
-    customfavIcon: '/public/logo.png',
+    customfavIcon: '/public/Social Media Logo.png',
     customCssUrl: ['/public/global.css', '/public/dark.css', '/public/light.css'],
     customJs: '/public/swagger.js',
     swaggerOptions: {

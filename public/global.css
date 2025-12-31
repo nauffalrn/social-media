@@ -60,13 +60,13 @@ body {
 
 .swagger-ui .info .title::before {
   content: '';
-  background-image: url('/public/logo.png');
+  background-image: url('/public/Social Media Logo.png');
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
   display: inline-block;
-  width: 36px; /* Adjust size */
-  height: 36px; /* Adjust size */
+  width: 68px; /* Adjust size */
+  height: 68px; /* Adjust size */
 }
 
 .swagger-ui .topbar .download-url-wrapper .select-label select {
@@ -491,4 +491,21 @@ body {
 
 .swagger-ui .highlight-code > .microlight code.language-json span {
   color: var(--primary-text-color)   !important;
+}
+
+/* Ganti logo Swagger */
+.swagger-ui .topbar-wrapper img {
+  content: url('/public/Social Media Logo.png');
+  max-height: 40px;
+  width: auto;
+}
+
+/* Atau hide logo default dan pakai custom */
+.swagger-ui .topbar-wrapper .link {
+  background: url('/public/Social Media Logo.png') no-repeat center;
+  background-size: contain;
+}
+
+.swagger-ui .topbar-wrapper .link img {
+  display: none;
 }
